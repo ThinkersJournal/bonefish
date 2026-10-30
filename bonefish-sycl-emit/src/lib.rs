@@ -33,6 +33,8 @@
 //! compile with the default flags *and* run a NaN case, so a compiler that folded that ternary
 //! away would fail them rather than silently change the answer.
 
+pub mod target;
+
 use unpopped::backend::{
     Backend, Decline, DeclinedOp, DtypeSupport, GeneratedKernel, LowerError, Lowering, Spelling,
     const_lit, lower_dag,
