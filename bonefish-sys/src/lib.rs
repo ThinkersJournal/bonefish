@@ -4,7 +4,7 @@
 //! The shim is only built when Intel's DPC++ compiler is found at build time; otherwise this
 //! crate is empty and `cfg(bonefish_sycl)` is not set. Handles are opaque pointers; status codes
 //! are `0` ok, `1` SYCL error, `2` oneMKL error, `3` other, with the message from
-//! [`bf_last_error`].
+//! `bf_last_error`.
 
 #[cfg(bonefish_sycl)]
 mod ffi {
