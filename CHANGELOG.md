@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.9
+
+- `bonefish`: `Queue` and `UsmBuffer<T>` are now `Send + Sync` (`Rc` became `Arc`). Basis: the SYCL 2020 rule that all specified functions are thread-safe unless stated otherwise, and the oneAPI specification's statement that all oneMKL member and non-member functions are host thread safe; both are quoted at the `unsafe impl` in `src/queue.rs`. **Whether the shipped oneMKL (2026.1) conforms to the specification on this point is unverified** (no product-level statement found), and the multi-threaded tests are evidence, not proof.
+- `Dft` stays neither `Send` nor `Sync`: the same oneAPI section says objects in class-based APIs "may not be shared between concurrent host threads unless otherwise specified". Pinned by `compile_fail,E0277` doctests, with `Queue` and `UsmBuffer` as the passing control.
+- Tests (`tests/threads.rs`): four threads sharing one queue for allocation, copies and `gemm`; one DFT plan per thread; a buffer moved to another thread after the original queue handle is dropped. CPU/OpenCL device only; GPU UNVERIFIED.
+
 ## 0.0.8
 
 - Test: no tracked file may contain a NUL byte (`tests/no_nul_bytes.rs`; files from `git ls-files`; a tracked binary needs an `ALLOWED_BINARY` entry with a reason). Added after a raw NUL in a Rust byte string compiled, passed every check, and made git treat the file as binary. Negative controls: a planted NUL is found at its offset and the `\0` escape is not flagged.
