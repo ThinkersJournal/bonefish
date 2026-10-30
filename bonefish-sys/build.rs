@@ -1,7 +1,8 @@
 //! Builds `shim/*.cpp` into a shared library with Intel's DPC++ compiler (`icpx -fsycl`) and
 //! links it. Without oneAPI the crate still builds (the `bonefish_sycl` cfg is simply not set), so
 //! `cargo test --all-features` works anywhere; set `BONEFISH_REQUIRE_SYCL=1` to turn "no oneAPI
-//! found" into a hard error (the oneAPI CI job does, so it can never pass by skipping).
+//! found" into a hard error (the oneAPI CI job does, so it can never pass by skipping), and
+//! `BONEFISH_NO_SYCL=1` skips the shim on purpose.
 
 use std::env;
 use std::path::PathBuf;
@@ -14,6 +15,7 @@ fn main() {
     for v in [
         "BONEFISH_ICPX",
         "BONEFISH_REQUIRE_SYCL",
+        "BONEFISH_NO_SYCL",
         "ONEAPI_ROOT",
         "MKLROOT",
         "PATH",
@@ -21,6 +23,17 @@ fn main() {
         println!("cargo::rerun-if-env-changed={v}");
     }
     let require = env::var("BONEFISH_REQUIRE_SYCL").is_ok_and(|v| v == "1");
+
+    // Deliberately build without the shim (the crate then uses its failing stand-ins). Useful to
+    // test that path on a machine that has oneAPI, and for users who do not want it built.
+    if env::var("BONEFISH_NO_SYCL").is_ok_and(|v| v == "1") {
+        assert!(
+            !require,
+            "BONEFISH_NO_SYCL=1 contradicts BONEFISH_REQUIRE_SYCL=1"
+        );
+        println!("cargo::warning=BONEFISH_NO_SYCL=1: building without SYCL support");
+        return;
+    }
 
     let Some((icpx, root)) = find_icpx() else {
         let msg = "oneAPI DPC++ compiler (icpx) not found: set BONEFISH_ICPX or ONEAPI_ROOT, \

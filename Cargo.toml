@@ -1,12 +1,15 @@
 [package]
 name = "bonefish"
-version = "0.0.6"
+version = "0.0.7"
 edition = "2024"
-description = "Reserved name for Bonefish, a planned comprehensive Rust interface to Intel oneAPI / oneMKL GPU computing (SYCL/DPC++)."
+description = "A safe Rust interface to Intel oneAPI / oneMKL on SYCL devices."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/ThinkersJournal/bonefish"
 readme = "README.md"
 publish = false
+
+[dependencies]
+bonefish-sys = { version = "0.0.7", path = "bonefish-sys" }
 
 [workspace]
 members = [".", "bonefish-sys", "bonefish-sycl-emit"]

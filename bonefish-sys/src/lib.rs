@@ -199,3 +199,325 @@ pub use ffi::*;
 
 /// Whether the shim was built into this crate.
 pub const SYCL_AVAILABLE: bool = cfg!(bonefish_sycl);
+
+/// Stand-ins used when the shim was not built (no oneAPI at build time): same signatures as the
+/// real foreign functions, so everything above this crate compiles identically either way.
+/// Constructors return null, status-returning calls return [`STATUS_UNAVAILABLE`], and
+/// `bf_last_error` explains. The real/stub pair is checked by the compiler in the two CI
+/// configurations (with and without oneAPI), because the safe layer calls whichever is active.
+// The stand-ins must be `unsafe` to match the real foreign declarations (callers wrap them in
+// `unsafe` either way), and they take the same long argument lists, so these two lints fire on
+// them for reasons that do not apply: they dereference nothing and have no safety contract.
+#[cfg(not(bonefish_sycl))]
+#[allow(clippy::missing_safety_doc, clippy::too_many_arguments)]
+mod stub {
+    use std::ffi::{c_char, c_void};
+
+    /// Returned by every status-returning call in a build without the shim.
+    pub const STATUS_UNAVAILABLE: i32 = 4;
+    const UNAVAILABLE_MSG: &[u8] =
+        b"bonefish was built without oneAPI (icpx not found at build time)\0";
+
+    pub unsafe extern "C" fn bf_queue_new(_kind: i32) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_queue_free(_q: *mut c_void) {}
+
+    pub unsafe extern "C" fn bf_queue_device_name(
+        _q: *mut c_void,
+        _buf: *mut c_char,
+        _cap: i64,
+    ) -> i64 {
+        -1
+    }
+
+    pub unsafe extern "C" fn bf_malloc(_q: *mut c_void, _kind: i32, _bytes: i64) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_free(_q: *mut c_void, _p: *mut c_void) {}
+
+    pub unsafe extern "C" fn bf_memcpy(
+        _q: *mut c_void,
+        _dst: *mut c_void,
+        _src: *const c_void,
+        _bytes: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_sgemm(
+        _q: *mut c_void,
+        _ta: i32,
+        _tb: i32,
+        _m: i64,
+        _n: i64,
+        _k: i64,
+        _alpha: f32,
+        _a: *const f32,
+        _lda: i64,
+        _b: *const f32,
+        _ldb: i64,
+        _beta: f32,
+        _c: *mut f32,
+        _ldc: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_dgemm(
+        _q: *mut c_void,
+        _ta: i32,
+        _tb: i32,
+        _m: i64,
+        _n: i64,
+        _k: i64,
+        _alpha: f64,
+        _a: *const f64,
+        _lda: i64,
+        _b: *const f64,
+        _ldb: i64,
+        _beta: f64,
+        _c: *mut f64,
+        _ldc: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_dft_c2c_new(
+        _q: *mut c_void,
+        _prec: i32,
+        _ndim: i64,
+        _lengths: *const i64,
+        _inplace: i32,
+        _fwd_scale: f64,
+        _bwd_scale: f64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_dft_free(_h: *mut c_void) {}
+
+    pub unsafe extern "C" fn bf_dft_compute(
+        _h: *mut c_void,
+        _dir: i32,
+        _input: *mut c_void,
+        _out: *mut c_void,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_saxpy(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: f32,
+        _x: *const f32,
+        _incx: i64,
+        _y: *mut f32,
+        _incy: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_sscal(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: f32,
+        _x: *mut f32,
+        _incx: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_scopy(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _y: *mut f32,
+        _incy: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_sswap(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *mut f32,
+        _incx: i64,
+        _y: *mut f32,
+        _incy: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_sdot(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _y: *const f32,
+        _incy: i64,
+        _result: *mut f32,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_snrm2(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _result: *mut f32,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_sasum(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _result: *mut f32,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_siamax(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _result: *mut i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_sgemv(
+        _q: *mut c_void,
+        _trans: i32,
+        _m: i64,
+        _n: i64,
+        _alpha: f32,
+        _a: *const f32,
+        _lda: i64,
+        _x: *const f32,
+        _incx: i64,
+        _beta: f32,
+        _y: *mut f32,
+        _incy: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_daxpy(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: f64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *mut f64,
+        _incy: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_dscal(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: f64,
+        _x: *mut f64,
+        _incx: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_dcopy(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *mut f64,
+        _incy: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_dswap(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *mut f64,
+        _incx: i64,
+        _y: *mut f64,
+        _incy: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_ddot(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *const f64,
+        _incy: i64,
+        _result: *mut f64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_dnrm2(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _result: *mut f64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_dasum(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _result: *mut f64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_diamax(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _result: *mut i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_dgemv(
+        _q: *mut c_void,
+        _trans: i32,
+        _m: i64,
+        _n: i64,
+        _alpha: f64,
+        _a: *const f64,
+        _lda: i64,
+        _x: *const f64,
+        _incx: i64,
+        _beta: f64,
+        _y: *mut f64,
+        _incy: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_last_error() -> *const c_char {
+        UNAVAILABLE_MSG.as_ptr().cast()
+    }
+}
+
+#[cfg(not(bonefish_sycl))]
+pub use stub::*;
