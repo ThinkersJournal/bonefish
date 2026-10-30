@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.8
+
+- Test: no tracked file may contain a NUL byte (`tests/no_nul_bytes.rs`; files from `git ls-files`; a tracked binary needs an `ALLOWED_BINARY` entry with a reason). Added after a raw NUL in a Rust byte string compiled, passed every check, and made git treat the file as binary. Negative controls: a planted NUL is found at its offset and the `\0` escape is not flagged.
+- ROADMAP R3b: records the SYCL 2020 thread-safety text and why `Queue` stays `!Send + !Sync` (see the row).
+
 ## 0.0.7
 
 - `bonefish`: the safe API. `Queue` (`DeviceKind`), `UsmBuffer<T>` (Shared/Device/Host; `f32`, `f64`, `Complex<_>`), `blas::gemm` and `Dft` (complex-to-complex, `f32`/`f64`, 1-D and N-D, in/out-of-place, scales). Every extent is bounds-checked in Rust before the device is touched; a buffer from another queue is `QueueMismatch`. Blocking only, so no `Event` yet. `Queue` is `!Send + !Sync` (thread-safety of `sycl::queue` not verified).
