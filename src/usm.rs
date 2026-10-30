@@ -46,6 +46,14 @@ pub struct UsmBuffer<T: Element> {
     _marker: PhantomData<T>,
 }
 
+// SAFETY: the buffer is a uniquely owned USM allocation of plain `Element` data plus a `Queue`
+// (itself `Send + Sync`, see there). Moving it to another thread moves ownership of the pointer;
+// sharing `&UsmBuffer` only allows reads (`to_vec`, `as_slice`) and passing it as a read-only
+// operand, and every mutation takes `&mut self`.
+unsafe impl<T: Element> Send for UsmBuffer<T> {}
+// SAFETY: as above.
+unsafe impl<T: Element> Sync for UsmBuffer<T> {}
+
 impl<T: Element> UsmBuffer<T> {
     fn alloc(queue: &Queue, kind: UsmKind, len: usize) -> Result<Self> {
         // At least one element, so the pointer is never null for an empty buffer.

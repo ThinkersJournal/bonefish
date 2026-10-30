@@ -2,7 +2,7 @@
 
 use std::ffi::{c_char, c_void};
 use std::ptr::NonNull;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use bonefish_sys as sys;
 
@@ -23,10 +23,29 @@ struct Inner {
     raw: NonNull<c_void>,
 }
 
+// SAFETY: sharing and moving a queue between threads is sound under the two specification
+// statements this crate relies on, both quoted verbatim:
+//
+// - SYCL 2020 (rev 12), chapter 4 introduction: "All functions defined in this specification are
+//   thread-safe, unless otherwise specified." Section 4.6.5 (queue) reported no exception.
+// - oneAPI specification (oneMKL, "Execution Model > Host Thread Safety", v1.3-rev-1): "All oneMKL
+//   member and non-member functions shall be host thread safe." That covers the non-member BLAS
+//   calls this crate makes on a queue. The same section adds: "oneMKL objects in class-based APIs
+//   may not be shared between concurrent host threads unless otherwise specified." which is why
+//   `Dft` is NOT `Sync` (nor `Send`, conservatively).
+//
+// Limits, stated rather than hidden: these are specification texts, read through a summariser
+// and cross-checked by a second search; Intel's own developer-reference pages for the shipped
+// product were searched and no product-level statement was found. `ROADMAP.md` (R3b) has the
+// detail, and `tests/threads.rs` exercises concurrent use without proving it.
+unsafe impl Send for Inner {}
+// SAFETY: as above.
+unsafe impl Sync for Inner {}
+
 impl Drop for Inner {
     fn drop(&mut self) {
         // SAFETY: `raw` came from `bf_queue_new` and is freed exactly once, here, after every
-        // buffer and plan that holds this queue has been dropped (they hold an `Rc`).
+        // buffer and plan that holds this queue has been dropped (they hold an `Arc`).
         unsafe { sys::bf_queue_free(self.raw.as_ptr()) }
     }
 }
@@ -34,10 +53,15 @@ impl Drop for Inner {
 /// A SYCL queue on one device. Cloning shares the same queue; it is released when the last clone
 /// and the last buffer or plan made from it are dropped.
 ///
-/// Not `Send` or `Sync`: whether a `sycl::queue` may be used from several threads is not
-/// something this crate has verified, so it does not claim it.
+/// `Send + Sync`: one queue may be shared by several host threads, which may each allocate, copy
+/// and call [`blas::gemm`](crate::blas::gemm) on it. That rests on the SYCL 2020 and oneAPI
+/// (oneMKL) **specification** statements quoted at the `unsafe impl` in the source. Whether the
+/// shipped oneMKL (2026.1 was the one used here) conforms to the specification on this point is
+/// **unverified**: no product-level statement was found, and the multi-threaded tests are
+/// evidence, not proof. See `ROADMAP.md` R3b. A [`Dft`](crate::Dft) made from a queue is not
+/// shareable between threads.
 #[derive(Clone)]
-pub struct Queue(Rc<Inner>);
+pub struct Queue(Arc<Inner>);
 
 impl Queue {
     /// Create a queue.
@@ -55,7 +79,7 @@ impl Queue {
         // SAFETY: plain call; a null return is handled below.
         let raw = unsafe { sys::bf_queue_new(code) };
         match NonNull::new(raw) {
-            Some(raw) => Ok(Queue(Rc::new(Inner { raw }))),
+            Some(raw) => Ok(Queue(Arc::new(Inner { raw }))),
             None if !sys::SYCL_AVAILABLE => Err(Error::Unavailable(last_message())),
             None => Err(Error::Sycl(last_message())),
         }
@@ -87,7 +111,7 @@ impl Queue {
     /// Whether `other` is the same underlying queue (not merely an equal device).
     #[must_use]
     pub fn same_as(&self, other: &Queue) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
+        Arc::ptr_eq(&self.0, &other.0)
     }
 
     pub(crate) fn raw(&self) -> *mut c_void {
