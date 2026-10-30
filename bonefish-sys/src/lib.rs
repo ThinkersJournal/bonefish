@@ -56,6 +56,27 @@ mod ffi {
             c: *mut f64,
             ldc: i64,
         ) -> i32;
+        /// Committed complex-to-complex descriptor over `ndim` `lengths`. `prec`: 0 single, 1 double.
+        /// `fwd_scale`/`bwd_scale` multiply the respective result (oneMKL defaults: 1 and 1).
+        /// Null on failure.
+        pub fn bf_dft_c2c_new(
+            q: *mut c_void,
+            prec: i32,
+            ndim: i64,
+            lengths: *const i64,
+            inplace: i32,
+            fwd_scale: f64,
+            bwd_scale: f64,
+        ) -> *mut c_void;
+        pub fn bf_dft_free(h: *mut c_void);
+        /// Blocking transform on USM interleaved complex data. `dir`: 0 forward, 1 backward. Pass
+        /// `out` null for an in-place descriptor (`input` is overwritten).
+        pub fn bf_dft_compute(
+            h: *mut c_void,
+            dir: i32,
+            input: *mut c_void,
+            out: *mut c_void,
+        ) -> i32;
         /// Message of the last failure on this thread.
         pub fn bf_last_error() -> *const c_char;
     }
