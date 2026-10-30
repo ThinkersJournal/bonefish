@@ -1,0 +1,109 @@
+// extern "C" shim over oneapi::mkl (SYCL). Opaque handles only; no C++ type crosses the boundary.
+#include <sycl/sycl.hpp>
+#include <oneapi/mkl.hpp>
+
+#include <cstdint>
+#include <cstring>
+#include <string>
+
+#if defined(_WIN32)
+#define BF_API extern "C" __declspec(dllexport)
+#else
+#define BF_API extern "C" __attribute__((visibility("default")))
+#endif
+
+namespace {
+thread_local std::string g_last_error;
+
+sycl::queue &Q(void *q) { return *static_cast<sycl::queue *>(q); }
+
+oneapi::mkl::transpose T(int32_t t) {
+  switch (t) {
+  case 1: return oneapi::mkl::transpose::trans;
+  case 2: return oneapi::mkl::transpose::conjtrans;
+  default: return oneapi::mkl::transpose::nontrans;
+  }
+}
+
+// Run f, mapping exceptions to status codes: 0 ok, 1 SYCL error, 2 oneMKL error, 3 other.
+template <class F> int32_t guard(F &&f) {
+  try {
+    f();
+    return 0;
+  } catch (const sycl::exception &e) {
+    g_last_error = e.what();
+    return 1;
+  } catch (const oneapi::mkl::exception &e) {
+    g_last_error = e.what();
+    return 2;
+  } catch (const std::exception &e) {
+    g_last_error = e.what();
+    return 3;
+  } catch (...) {
+    g_last_error = "unknown C++ exception";
+    return 3;
+  }
+}
+} // namespace
+
+// kind: 0 default selector, 1 cpu, 2 gpu. Returns null on failure (see bf_last_error).
+BF_API void *bf_queue_new(int32_t kind) {
+  void *out = nullptr;
+  guard([&] {
+    switch (kind) {
+    case 1: out = new sycl::queue{sycl::cpu_selector_v}; break;
+    case 2: out = new sycl::queue{sycl::gpu_selector_v}; break;
+    default: out = new sycl::queue{sycl::default_selector_v}; break;
+    }
+  });
+  return out;
+}
+
+BF_API void bf_queue_free(void *q) { delete static_cast<sycl::queue *>(q); }
+
+// Copies the device name (NUL-terminated, truncated to cap) into buf; returns the full length.
+BF_API int64_t bf_queue_device_name(void *q, char *buf, int64_t cap) {
+  std::string n;
+  if (guard([&] { n = Q(q).get_device().get_info<sycl::info::device::name>(); }) != 0) return -1;
+  if (buf && cap > 0) {
+    std::strncpy(buf, n.c_str(), static_cast<size_t>(cap - 1));
+    buf[cap - 1] = '\0';
+  }
+  return static_cast<int64_t>(n.size());
+}
+
+// kind: 0 shared, 1 device, 2 host. Returns null on failure.
+BF_API void *bf_malloc(void *q, int32_t kind, int64_t bytes) {
+  void *p = nullptr;
+  guard([&] {
+    switch (kind) {
+    case 1: p = sycl::malloc_device(static_cast<size_t>(bytes), Q(q)); break;
+    case 2: p = sycl::malloc_host(static_cast<size_t>(bytes), Q(q)); break;
+    default: p = sycl::malloc_shared(static_cast<size_t>(bytes), Q(q)); break;
+    }
+  });
+  return p;
+}
+
+BF_API void bf_free(void *q, void *p) { sycl::free(p, Q(q)); }
+
+BF_API int32_t bf_memcpy(void *q, void *dst, const void *src, int64_t bytes) {
+  return guard([&] { Q(q).memcpy(dst, src, static_cast<size_t>(bytes)).wait(); });
+}
+
+// Column-major GEMM, blocking. transa/transb: 0 N, 1 T, 2 C.
+#define BF_GEMM(NAME, TY)                                                                         \
+  BF_API int32_t NAME(void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t k,          \
+                      TY alpha, const TY *a, int64_t lda, const TY *b, int64_t ldb, TY beta,     \
+                      TY *c, int64_t ldc) {                                                      \
+    return guard([&] {                                                                           \
+      oneapi::mkl::blas::column_major::gemm(Q(q), T(ta), T(tb), m, n, k, alpha, a, lda, b, ldb,  \
+                                            beta, c, ldc)                                        \
+          .wait();                                                                               \
+    });                                                                                          \
+  }
+BF_GEMM(bf_sgemm, float)
+BF_GEMM(bf_dgemm, double)
+
+// Message of the last failure on this thread; valid until the next failing call on it.
+BF_API const char *bf_last_error() { return g_last_error.c_str(); }
