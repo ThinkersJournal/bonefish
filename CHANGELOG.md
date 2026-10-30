@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.7
+
+- `bonefish`: the safe API. `Queue` (`DeviceKind`), `UsmBuffer<T>` (Shared/Device/Host; `f32`, `f64`, `Complex<_>`), `blas::gemm` and `Dft` (complex-to-complex, `f32`/`f64`, 1-D and N-D, in/out-of-place, scales). Every extent is bounds-checked in Rust before the device is touched; a buffer from another queue is `QueueMismatch`. Blocking only, so no `Event` yet. `Queue` is `!Send + !Sync` (thread-safety of `sycl::queue` not verified).
+- `bonefish-sys`: without oneAPI the same foreign functions exist as failing stand-ins, so `bonefish` compiles either way and `Queue::new` returns `Error::Unavailable`; `BONEFISH_NO_SYCL=1` builds that way on purpose. Fixed a literal NUL byte in the stand-ins' message.
+- CPU/OpenCL device only (Windows laptop, Linux CI); GPU UNVERIFIED.
+
 ## 0.0.6
 
 - `bonefish-sys`: BLAS level 1 (`axpy scal copy swap dot nrm2 asum iamax`) and `gemv`, single and double precision, in `shim/blas1.cpp`. Tests are generated from one macro for both precisions and include strided access, `iamax` ties, a transposed `gemv` and a rejected `lda`. CPU/OpenCL device only (Windows laptop, Linux CI); GPU UNVERIFIED. Docs: the `sycl:` proposal now states that its witness proves reachability only, never device admission.
