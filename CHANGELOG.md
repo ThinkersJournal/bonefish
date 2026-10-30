@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.5
+
+- `bonefish-sycl-emit::target`: proposed `sycl:` capability-set vocabulary (35 tokens) with its KISS-CLASSIFY-6.8-0014 derivability witness and a named gate (`tests/sycl_target_tokens.rs`); `docs/sycl-namespace-proposal.md`. ROADMAP R7: icpx fast-math accuracy finding with measured flags. A proposal to KISS, not a registered namespace.
+
 ## 0.0.4
 
 - New crate `bonefish-sycl-emit`: SYCL/DPC++ `Backend` for `unpopped` 0.34.11 (pinned exactly). v1 scope: contiguous elementwise, f32/f64, single output; everything else is a typed decline. Math is spelled as `sycl::` calls because icpx's default fast model compiles `expf` to a result 1.8e-4 off. Verified by compiling with icpx and running on the CPU/OpenCL device against `unpopped::oracle`; GPU UNVERIFIED. `publish = false`.
