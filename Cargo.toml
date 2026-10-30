@@ -7,3 +7,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/ThinkersJournal/bonefish"
 readme = "README.md"
 publish = false
+
+[workspace]
+members = [".", "bonefish-sys"]
+default-members = [".", "bonefish-sys"]

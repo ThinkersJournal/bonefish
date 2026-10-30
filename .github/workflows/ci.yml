@@ -68,6 +68,30 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
 
+  # Builds the SYCL shim with Intel's DPC++ compiler and runs the GEMM tests on the CPU (OpenCL)
+  # device. BONEFISH_REQUIRE_SYCL=1 makes a missing toolchain a failure, never a skipped pass.
+  # Not a required check yet; GPU tests need hardware (UNVERIFIED, see ROADMAP).
+  oneapi-linux:
+    name: oneapi (ubuntu, cpu device)
+    runs-on: ubuntu-latest
+    env:
+      BONEFISH_REQUIRE_SYCL: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - name: Install oneAPI from Intel's apt repository
+        run: |
+          wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB             | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main"             | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mkl-devel intel-oneapi-runtime-opencl
+      - name: Show SYCL devices
+        run: source /opt/intel/oneapi/setvars.sh && sycl-ls
+      - name: Test
+        run: source /opt/intel/oneapi/setvars.sh && cargo test --all-features --no-fail-fast -p bonefish-sys
+
   # Advisory only (CireSnave 2026-10-23): not a required check.
   portfolio:
     permissions:
