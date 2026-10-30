@@ -1,0 +1,14 @@
+[package]
+name = "bonefish-sycl-emit"
+version = "0.0.4"
+edition = "2024"
+rust-version = "1.85"
+description = "SYCL/DPC++ backend for the neutral unpopped kernel generator: lowers a KernelPlan to SYCL C++ source."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ThinkersJournal/bonefish"
+publish = false
+
+[dependencies]
+# Pre-1.0 and moving: pinned exactly (unpopped's own advice).
+unpopped = "=0.34.11"
+unpopped-vocab = "=0.34.11"
