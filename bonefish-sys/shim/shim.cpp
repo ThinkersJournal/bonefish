@@ -1,47 +1,19 @@
 // extern "C" shim over oneapi::mkl (SYCL). Opaque handles only; no C++ type crosses the boundary.
-#include <sycl/sycl.hpp>
-#include <oneapi/mkl.hpp>
+#include "common.hpp"
 
-#include <cstdint>
 #include <cstring>
-#include <string>
 
-#if defined(_WIN32)
-#define BF_API extern "C" __declspec(dllexport)
-#else
-#define BF_API extern "C" __attribute__((visibility("default")))
-#endif
+thread_local std::string bf::g_last_error;
+
+using bf::guard;
+using bf::Q;
 
 namespace {
-thread_local std::string g_last_error;
-
-sycl::queue &Q(void *q) { return *static_cast<sycl::queue *>(q); }
-
 oneapi::mkl::transpose T(int32_t t) {
   switch (t) {
   case 1: return oneapi::mkl::transpose::trans;
   case 2: return oneapi::mkl::transpose::conjtrans;
   default: return oneapi::mkl::transpose::nontrans;
-  }
-}
-
-// Run f, mapping exceptions to status codes: 0 ok, 1 SYCL error, 2 oneMKL error, 3 other.
-template <class F> int32_t guard(F &&f) {
-  try {
-    f();
-    return 0;
-  } catch (const sycl::exception &e) {
-    g_last_error = e.what();
-    return 1;
-  } catch (const oneapi::mkl::exception &e) {
-    g_last_error = e.what();
-    return 2;
-  } catch (const std::exception &e) {
-    g_last_error = e.what();
-    return 3;
-  } catch (...) {
-    g_last_error = "unknown C++ exception";
-    return 3;
   }
 }
 } // namespace
@@ -106,4 +78,4 @@ BF_GEMM(bf_sgemm, float)
 BF_GEMM(bf_dgemm, double)
 
 // Message of the last failure on this thread; valid until the next failing call on it.
-BF_API const char *bf_last_error() { return g_last_error.c_str(); }
+BF_API const char *bf_last_error() { return bf::g_last_error.c_str(); }

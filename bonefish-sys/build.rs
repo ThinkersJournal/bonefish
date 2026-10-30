@@ -1,4 +1,4 @@
-//! Builds `shim/shim.cpp` into a shared library with Intel's DPC++ compiler (`icpx -fsycl`) and
+//! Builds `shim/*.cpp` into a shared library with Intel's DPC++ compiler (`icpx -fsycl`) and
 //! links it. Without oneAPI the crate still builds (the `bonefish_sycl` cfg is simply not set), so
 //! `cargo test --all-features` works anywhere; set `BONEFISH_REQUIRE_SYCL=1` to turn "no oneAPI
 //! found" into a hard error (the oneAPI CI job does, so it can never pass by skipping).
@@ -9,7 +9,7 @@ use std::process::Command;
 
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(bonefish_sycl)");
-    println!("cargo::rerun-if-changed=shim/shim.cpp");
+    println!("cargo::rerun-if-changed=shim");
     println!("cargo::rerun-if-changed=build.rs");
     for v in [
         "BONEFISH_ICPX",
@@ -45,7 +45,9 @@ fn main() {
     if !windows {
         cmd.arg("-fPIC");
     }
-    cmd.arg("shim/shim.cpp").arg("-o").arg(&lib);
+    cmd.args(["shim/shim.cpp", "shim/dft.cpp"])
+        .arg("-o")
+        .arg(&lib);
     if env::var_os("MKLROOT").is_none()
         && let Some(root) = root
     {
