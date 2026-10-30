@@ -90,7 +90,7 @@ jobs:
       - name: Show SYCL devices
         run: source /opt/intel/oneapi/setvars.sh && sycl-ls
       - name: Test
-        run: source /opt/intel/oneapi/setvars.sh && cargo test --all-features --no-fail-fast -p bonefish-sys
+        run: source /opt/intel/oneapi/setvars.sh && cargo test --all-features --no-fail-fast --workspace
 
   # Advisory only (CireSnave 2026-10-23): not a required check.
   portfolio:
