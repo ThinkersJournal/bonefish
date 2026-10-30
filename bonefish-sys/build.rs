@@ -45,7 +45,7 @@ fn main() {
     if !windows {
         cmd.arg("-fPIC");
     }
-    cmd.args(["shim/shim.cpp", "shim/dft.cpp"])
+    cmd.args(["shim/shim.cpp", "shim/dft.cpp", "shim/blas1.cpp"])
         .arg("-o")
         .arg(&lib);
     if env::var_os("MKLROOT").is_none()
