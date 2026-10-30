@@ -11,7 +11,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use bonefish_sycl_emit::target::{
-    JIT_TOKEN, TOKENS, derive_tokens, parse_architecture_def, unwitnessed,
+    JIT_TOKEN, derive_tokens, parse_architecture_def, parse_release, token_names, tokens_since,
+    unwitnessed,
 };
 
 fn find_icpx() -> Option<PathBuf> {
@@ -52,6 +53,22 @@ fn toolchain(test: &str) -> Option<PathBuf> {
     found
 }
 
+/// `(year, minor)` of the installed compiler, from `icpx --version`
+/// ("Intel(R) oneAPI DPC++/C++ Compiler 2026.1.0 (...)").
+fn installed_release(icpx: &Path) -> (u32, u32) {
+    let out = Command::new(icpx)
+        .arg("--version")
+        .output()
+        .expect("icpx --version");
+    let text = String::from_utf8_lossy(&out.stdout);
+    let after = text
+        .split("Compiler ")
+        .nth(1)
+        .unwrap_or_else(|| panic!("no 'Compiler <version>' in {text:?}"));
+    parse_release(after.split_whitespace().next().unwrap_or(""))
+        .unwrap_or_else(|| panic!("unparseable release in {after:?}"))
+}
+
 fn architecture_def(icpx: &Path) -> String {
     let root = icpx
         .parent()
@@ -79,11 +96,14 @@ fn every_named_token_is_produced_by_the_installed_table() {
         "{}",
         table.len()
     );
-    let missing = unwitnessed(TOKENS, &table);
+    let release = installed_release(&icpx);
+    // Only tokens the installed release should have: a token added for a later release has no
+    // witness in an older table, and that is not a defect.
+    let missing = unwitnessed(&tokens_since(release), &table);
     assert!(
         missing.is_empty(),
-        "no upstream entry produces {missing:?}: the vocabulary names a capability the \
-         installed DPC++ does not have"
+        "DPC++ {release:?}: no upstream entry produces {missing:?}: the vocabulary names a \
+         capability the installed compiler does not have"
     );
 }
 
@@ -95,7 +115,7 @@ fn the_vocabulary_is_complete_for_the_installed_table() {
     let table = parse_architecture_def(&architecture_def(&icpx));
     let unlisted: Vec<String> = derive_tokens(&table)
         .into_iter()
-        .filter(|t| !TOKENS.contains(&t.as_str()))
+        .filter(|t| !token_names().contains(&t.as_str()))
         .collect();
     assert!(
         unlisted.is_empty(),
@@ -117,10 +137,11 @@ fn the_gate_fails_for_the_reason_the_clause_names() {
         .collect::<Vec<_>>()
         .join("\n");
     assert_ne!(mutated.len(), text.len(), "the mutation did not apply");
-    let missing = unwitnessed(TOKENS, &parse_architecture_def(&mutated));
+    let wanted = tokens_since(installed_release(&icpx));
+    let missing = unwitnessed(&wanted, &parse_architecture_def(&mutated));
     assert_eq!(missing, ["sycl:intel-gpu-pvc"]);
     // And the unmutated table passes, so the failure above is the mutation's.
-    assert!(unwitnessed(TOKENS, &parse_architecture_def(&text)).is_empty());
+    assert!(unwitnessed(&wanted, &parse_architecture_def(&text)).is_empty());
 }
 
 fn compiles_for(icpx: &Path, target: &str) -> bool {

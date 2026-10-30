@@ -19,9 +19,11 @@ sycl:intel-gpu-<arch>         ahead-of-time for one Intel GPU architecture
 - After the single `:` the field is lowercase `[a-z0-9-]`. No `.` fields, no member list, no range: a **single scalar**, as `cuda:` is, so §6.8-0006 (fixed-width juxtaposition) is vacuous and §6.8-0007 (digest fallback) is unreachable.
 - **Aliases get no token.** `intel_gpu_dg2_g10` is another name for `intel_gpu_acm_g10` (same value in the table); a second token would split one cell in two under byte-exact matching. The table marks them with `__SYCL_ARCHITECTURE_ALIAS`; 48 of the 143 entries are aliases.
 
-## 3. Token set (35 tokens)
+## 3. Token set (36 tokens)
 
-`sycl:spir64`, and one `sycl:intel-gpu-<arch>` for each of the 34 canonical Intel GPU entries of the 2026.1 table: `bdw skl kbl cfl apl glk whl aml cml icllp ehl tgllp rkl adl-s adl-p adl-n dg1 acm-g10 acm-g11 acm-g12 pvc pvc-vg mtl-u mtl-h arl-h bmg-g21 bmg-g31 lnl-m ptl-h ptl-u wcl nvl-s nvl-u nvl-p`. The authoritative list is `bonefish-sycl-emit/src/target.rs` (`TOKENS`), which the gate checks against the installed table in both directions.
+`sycl:spir64`, and one `sycl:intel-gpu-<arch>` for each canonical Intel GPU entry: the 34 of the 2026.1 table, `bdw skl kbl cfl apl glk whl aml cml icllp ehl tgllp rkl adl-s adl-p adl-n dg1 acm-g10 acm-g11 acm-g12 pvc pvc-vg mtl-u mtl-h arl-h bmg-g21 bmg-g31 lnl-m ptl-h ptl-u wcl nvl-s nvl-u nvl-p`, plus `cri`, which the 2026.2 table adds (seen on the Linux CI runner, which installs 2026.2 from Intel's apt repository; absent from the 2026.1 table on the Windows laptop).
+
+**The set grows with the compiler.** A new architecture is an additive spelling (as for `cuda:`), so each token records the first DPC++ release that produces it (`TOKENS` pairs). The gate checks a token's witness only against a compiler at or after that release, and checks that the installed table yields nothing the list lacks. A list pinned to one release cannot pass on both: this was found when the first version of the gate failed on 2026.2 for `intel_gpu_cri`. The authoritative list is `bonefish-sycl-emit/src/target.rs` (`TOKENS`), which the gate checks against the installed table in both directions.
 
 Deliberately **out of scope**: NVIDIA and AMD entries of the same table (`nvidia_gpu_*`, `amd_gpu_*`) belong to `cuda:` and the HIP lane's namespace, and Intel CPU entries (`intel_cpu_*`, `x86_64`) are not built for in v1.
 

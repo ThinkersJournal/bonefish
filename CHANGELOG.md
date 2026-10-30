@@ -2,7 +2,7 @@
 
 ## 0.0.5
 
-- `bonefish-sycl-emit::target`: proposed `sycl:` capability-set vocabulary (35 tokens) with its KISS-CLASSIFY-6.8-0014 derivability witness and a named gate (`tests/sycl_target_tokens.rs`); `docs/sycl-namespace-proposal.md`. ROADMAP R7: icpx fast-math accuracy finding with measured flags. A proposal to KISS, not a registered namespace.
+- `bonefish-sycl-emit::target`: proposed `sycl:` capability-set vocabulary (36 tokens, each with the DPC++ release that first produces it; `intel_gpu_cri` arrives in 2026.2) with its KISS-CLASSIFY-6.8-0014 derivability witness and a named gate (`tests/sycl_target_tokens.rs`); `docs/sycl-namespace-proposal.md`. ROADMAP R7: icpx fast-math accuracy finding with measured flags. A proposal to KISS, not a registered namespace.
 
 ## 0.0.4
 

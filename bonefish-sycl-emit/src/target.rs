@@ -108,46 +108,73 @@ pub fn unwitnessed(tokens: &[&str], table: &[ArchEntry]) -> Vec<String> {
         .collect()
 }
 
-/// The proposed vocabulary, as of DPC++ 2026.1's table: the portable token, then one token per
-/// canonical Intel GPU architecture. The gate checks this list against the installed table in
-/// both directions.
-pub const TOKENS: &[&str] = &[
-    "sycl:spir64",
-    "sycl:intel-gpu-bdw",
-    "sycl:intel-gpu-skl",
-    "sycl:intel-gpu-kbl",
-    "sycl:intel-gpu-cfl",
-    "sycl:intel-gpu-apl",
-    "sycl:intel-gpu-glk",
-    "sycl:intel-gpu-whl",
-    "sycl:intel-gpu-aml",
-    "sycl:intel-gpu-cml",
-    "sycl:intel-gpu-icllp",
-    "sycl:intel-gpu-ehl",
-    "sycl:intel-gpu-tgllp",
-    "sycl:intel-gpu-rkl",
-    "sycl:intel-gpu-adl-s",
-    "sycl:intel-gpu-adl-p",
-    "sycl:intel-gpu-adl-n",
-    "sycl:intel-gpu-dg1",
-    "sycl:intel-gpu-acm-g10",
-    "sycl:intel-gpu-acm-g11",
-    "sycl:intel-gpu-acm-g12",
-    "sycl:intel-gpu-pvc",
-    "sycl:intel-gpu-pvc-vg",
-    "sycl:intel-gpu-mtl-u",
-    "sycl:intel-gpu-mtl-h",
-    "sycl:intel-gpu-arl-h",
-    "sycl:intel-gpu-bmg-g21",
-    "sycl:intel-gpu-bmg-g31",
-    "sycl:intel-gpu-lnl-m",
-    "sycl:intel-gpu-ptl-h",
-    "sycl:intel-gpu-ptl-u",
-    "sycl:intel-gpu-wcl",
-    "sycl:intel-gpu-nvl-s",
-    "sycl:intel-gpu-nvl-u",
-    "sycl:intel-gpu-nvl-p",
+/// The proposed vocabulary: each token with the first DPC++ release whose table (or, for the
+/// portable token, whose driver) produces it. The vocabulary only grows (a new architecture is
+/// an additive spelling, as for `cuda:`), so a token is never removed because an older compiler
+/// lacks it; the gate checks a token's witness only against compilers at or after its release.
+/// `intel_gpu_cri` is absent from the 2026.1 table and present in 2026.2's (observed in CI).
+/// The gate checks this list against the installed table in both directions.
+pub const TOKENS: &[(&str, &str)] = &[
+    ("sycl:spir64", "2026.1"),
+    ("sycl:intel-gpu-bdw", "2026.1"),
+    ("sycl:intel-gpu-skl", "2026.1"),
+    ("sycl:intel-gpu-kbl", "2026.1"),
+    ("sycl:intel-gpu-cfl", "2026.1"),
+    ("sycl:intel-gpu-apl", "2026.1"),
+    ("sycl:intel-gpu-glk", "2026.1"),
+    ("sycl:intel-gpu-whl", "2026.1"),
+    ("sycl:intel-gpu-aml", "2026.1"),
+    ("sycl:intel-gpu-cml", "2026.1"),
+    ("sycl:intel-gpu-icllp", "2026.1"),
+    ("sycl:intel-gpu-ehl", "2026.1"),
+    ("sycl:intel-gpu-tgllp", "2026.1"),
+    ("sycl:intel-gpu-rkl", "2026.1"),
+    ("sycl:intel-gpu-adl-s", "2026.1"),
+    ("sycl:intel-gpu-adl-p", "2026.1"),
+    ("sycl:intel-gpu-adl-n", "2026.1"),
+    ("sycl:intel-gpu-dg1", "2026.1"),
+    ("sycl:intel-gpu-acm-g10", "2026.1"),
+    ("sycl:intel-gpu-acm-g11", "2026.1"),
+    ("sycl:intel-gpu-acm-g12", "2026.1"),
+    ("sycl:intel-gpu-pvc", "2026.1"),
+    ("sycl:intel-gpu-pvc-vg", "2026.1"),
+    ("sycl:intel-gpu-mtl-u", "2026.1"),
+    ("sycl:intel-gpu-mtl-h", "2026.1"),
+    ("sycl:intel-gpu-arl-h", "2026.1"),
+    ("sycl:intel-gpu-bmg-g21", "2026.1"),
+    ("sycl:intel-gpu-bmg-g31", "2026.1"),
+    ("sycl:intel-gpu-lnl-m", "2026.1"),
+    ("sycl:intel-gpu-ptl-h", "2026.1"),
+    ("sycl:intel-gpu-ptl-u", "2026.1"),
+    ("sycl:intel-gpu-wcl", "2026.1"),
+    ("sycl:intel-gpu-nvl-s", "2026.1"),
+    ("sycl:intel-gpu-nvl-u", "2026.1"),
+    ("sycl:intel-gpu-nvl-p", "2026.1"),
+    ("sycl:intel-gpu-cri", "2026.2"),
 ];
+
+/// The token strings, in order.
+#[must_use]
+pub fn token_names() -> Vec<&'static str> {
+    TOKENS.iter().map(|(t, _)| *t).collect()
+}
+
+/// The tokens whose witness an installed DPC++ `installed = (year, minor)` should satisfy.
+#[must_use]
+pub fn tokens_since(installed: (u32, u32)) -> Vec<&'static str> {
+    TOKENS
+        .iter()
+        .filter(|(_, since)| parse_release(since).is_some_and(|r| r <= installed))
+        .map(|(t, _)| *t)
+        .collect()
+}
+
+/// `"2026.1"` or `"2026.1.0"` -> `(2026, 1)`.
+#[must_use]
+pub fn parse_release(s: &str) -> Option<(u32, u32)> {
+    let mut it = s.split('.');
+    Some((it.next()?.parse().ok()?, it.next()?.parse().ok()?))
+}
 
 #[cfg(test)]
 mod tests {
@@ -220,7 +247,7 @@ __SYCL_ARCHITECTURE(nvidia_gpu_sm_90, 0x0100000000009000)
     fn tokens_obey_the_kiss_charset() {
         // KISS-Classify §6.8-0005: no `|`, `;`, `/`, whitespace or control byte; and this
         // vocabulary is lowercase [a-z0-9-] after the single `:`.
-        for tok in TOKENS {
+        for tok in token_names() {
             let (ns, rest) = tok.split_once(':').expect("one colon");
             assert_eq!(ns, "sycl");
             assert!(!rest.contains(':') && !rest.is_empty(), "{tok}");
@@ -235,8 +262,21 @@ __SYCL_ARCHITECTURE(nvidia_gpu_sm_90, 0x0100000000009000)
     #[test]
     fn tokens_are_unique() {
         let mut seen = std::collections::BTreeSet::new();
-        for tok in TOKENS {
-            assert!(seen.insert(*tok), "duplicate {tok}");
+        for tok in token_names() {
+            assert!(seen.insert(tok), "duplicate {tok}");
         }
+    }
+
+    #[test]
+    fn release_filtering_is_monotonic_and_parses_versions() {
+        assert_eq!(parse_release("2026.1"), Some((2026, 1)));
+        assert_eq!(parse_release("2026.2.0"), Some((2026, 2)));
+        assert_eq!(parse_release("nope"), None);
+        let old = tokens_since((2026, 1));
+        let new = tokens_since((2026, 2));
+        assert!(old.iter().all(|t| new.contains(t)));
+        assert_eq!(new.len(), old.len() + 1);
+        assert!(new.contains(&"sycl:intel-gpu-cri") && !old.contains(&"sycl:intel-gpu-cri"));
+        assert!(tokens_since((2025, 0)).is_empty());
     }
 }
