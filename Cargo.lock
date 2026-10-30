@@ -5,6 +5,9 @@ version = 4
 [[package]]
 name = "bonefish"
 version = "0.0.6"
+dependencies = [
+ "bonefish-sys",
+]
 
 [[package]]
 name = "bonefish-sycl-emit"

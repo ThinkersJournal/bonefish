@@ -1,3 +1,37 @@
-//! Bonefish: a planned comprehensive Rust interface to Intel oneAPI / oneMKL GPU computing.
+//! Bonefish: a safe Rust interface to Intel oneAPI / oneMKL on SYCL devices.
 //!
-//! No API yet; see `ROADMAP.md`.
+//! - [`Queue`]: a SYCL queue on one device ([`DeviceKind`]).
+//! - [`UsmBuffer`]: typed unified shared memory owned by a queue.
+//! - [`blas::gemm`]: matrix multiply, `f32` and `f64`.
+//! - [`Dft`]: complex-to-complex FFTs, `f32` and `f64`, 1-D and N-D.
+//!
+//! Every operation is blocking, and every buffer extent is checked in Rust before the device is
+//! touched, so a safe call cannot read or write outside a [`UsmBuffer`]. There is no `Event`
+//! type yet: with blocking calls there is nothing for one to represent (see `ROADMAP.md`).
+//!
+//! # Building without oneAPI
+//!
+//! The crate always compiles. When oneAPI's `icpx` was not found at build time the same API is
+//! present, [`SYCL_AVAILABLE`] is `false`, and [`Queue::new`] returns [`Error::Unavailable`], so
+//! a downstream crate can depend on this one unconditionally and decide at run time.
+//!
+//! # What has been run
+//!
+//! Only on the CPU (OpenCL) device, on Windows and Linux. No Intel GPU has run any of this.
+
+pub mod blas;
+mod dft;
+mod error;
+mod queue;
+mod scalar;
+mod usm;
+
+pub use blas::Transpose;
+pub use dft::{Dft, Placement};
+pub use error::{Error, Result};
+pub use queue::{DeviceKind, Queue};
+pub use scalar::{Complex, Element, Scalar};
+pub use usm::{UsmBuffer, UsmKind};
+
+/// Whether the SYCL shim was built into this binary.
+pub const SYCL_AVAILABLE: bool = bonefish_sys::SYCL_AVAILABLE;
