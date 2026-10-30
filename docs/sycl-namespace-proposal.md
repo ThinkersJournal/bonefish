@@ -34,7 +34,7 @@ Deliberately **out of scope**: NVIDIA and AMD entries of the same table (`nvidia
 | `sycl:intel-gpu-<arch>` | the `__SYCL_ARCHITECTURE(intel_gpu_<arch>, ...)` line (not `_ALIAS`) in `device_architecture.def`, which also declares `sycl::ext::oneapi::experimental::architecture::intel_gpu_<arch>` |
 | `sycl:spir64` | `-fsycl-targets=spir64`, accepted by `icpx` (the default target) |
 
-Direction: the witness says every **named** capability is **reachable** in the table; it does not say the Bonefish emitter's output has been run on that architecture. Only `intel_gpu_acm_g10` was additionally compiled ahead-of-time here (compile-only); the rest are table-derived and unexercised.
+Direction: the witness says every **named** capability is **reachable** in the table. It proves nothing else: not that the Bonefish emitter's output has been run on that architecture, and **not that any device admits a token** (a device advertising `sycl:spir64` beside its own token is a capability-advertisement claim, outside this witness and unmeasured on a GPU; KISS 2026-10-30). Only `intel_gpu_acm_g10` was additionally compiled ahead-of-time here (compile-only); the rest are table-derived and unexercised.
 
 **Upstream, not lateral or downstream.** The table is DPC++'s own, which our emitter does not generate; a token list restated from our code would be downstream and invalid.
 

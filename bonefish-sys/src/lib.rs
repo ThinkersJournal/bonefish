@@ -77,6 +77,118 @@ mod ffi {
             input: *mut c_void,
             out: *mut c_void,
         ) -> i32;
+        pub fn bf_saxpy(
+            q: *mut c_void,
+            n: i64,
+            alpha: f32,
+            x: *const f32,
+            incx: i64,
+            y: *mut f32,
+            incy: i64,
+        ) -> i32;
+        pub fn bf_sscal(q: *mut c_void, n: i64, alpha: f32, x: *mut f32, incx: i64) -> i32;
+        pub fn bf_scopy(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            y: *mut f32,
+            incy: i64,
+        ) -> i32;
+        pub fn bf_sswap(
+            q: *mut c_void,
+            n: i64,
+            x: *mut f32,
+            incx: i64,
+            y: *mut f32,
+            incy: i64,
+        ) -> i32;
+        /// Scalar results (`dot`, `nrm2`, `asum`, `iamax`) are written through a USM `result`.
+        pub fn bf_sdot(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            y: *const f32,
+            incy: i64,
+            result: *mut f32,
+        ) -> i32;
+        pub fn bf_snrm2(q: *mut c_void, n: i64, x: *const f32, incx: i64, result: *mut f32) -> i32;
+        pub fn bf_sasum(q: *mut c_void, n: i64, x: *const f32, incx: i64, result: *mut f32) -> i32;
+        /// Zero-based index of the first element of largest magnitude.
+        pub fn bf_siamax(q: *mut c_void, n: i64, x: *const f32, incx: i64, result: *mut i64)
+        -> i32;
+        /// `y = alpha * op(A) * x + beta * y`, `A` is `m x n` column-major. `trans`: 0 N, 1 T, 2 C.
+        pub fn bf_sgemv(
+            q: *mut c_void,
+            trans: i32,
+            m: i64,
+            n: i64,
+            alpha: f32,
+            a: *const f32,
+            lda: i64,
+            x: *const f32,
+            incx: i64,
+            beta: f32,
+            y: *mut f32,
+            incy: i64,
+        ) -> i32;
+        pub fn bf_daxpy(
+            q: *mut c_void,
+            n: i64,
+            alpha: f64,
+            x: *const f64,
+            incx: i64,
+            y: *mut f64,
+            incy: i64,
+        ) -> i32;
+        pub fn bf_dscal(q: *mut c_void, n: i64, alpha: f64, x: *mut f64, incx: i64) -> i32;
+        pub fn bf_dcopy(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            y: *mut f64,
+            incy: i64,
+        ) -> i32;
+        pub fn bf_dswap(
+            q: *mut c_void,
+            n: i64,
+            x: *mut f64,
+            incx: i64,
+            y: *mut f64,
+            incy: i64,
+        ) -> i32;
+        /// Scalar results (`dot`, `nrm2`, `asum`, `iamax`) are written through a USM `result`.
+        pub fn bf_ddot(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            y: *const f64,
+            incy: i64,
+            result: *mut f64,
+        ) -> i32;
+        pub fn bf_dnrm2(q: *mut c_void, n: i64, x: *const f64, incx: i64, result: *mut f64) -> i32;
+        pub fn bf_dasum(q: *mut c_void, n: i64, x: *const f64, incx: i64, result: *mut f64) -> i32;
+        /// Zero-based index of the first element of largest magnitude.
+        pub fn bf_diamax(q: *mut c_void, n: i64, x: *const f64, incx: i64, result: *mut i64)
+        -> i32;
+        /// `y = alpha * op(A) * x + beta * y`, `A` is `m x n` column-major. `trans`: 0 N, 1 T, 2 C.
+        pub fn bf_dgemv(
+            q: *mut c_void,
+            trans: i32,
+            m: i64,
+            n: i64,
+            alpha: f64,
+            a: *const f64,
+            lda: i64,
+            x: *const f64,
+            incx: i64,
+            beta: f64,
+            y: *mut f64,
+            incy: i64,
+        ) -> i32;
         /// Message of the last failure on this thread.
         pub fn bf_last_error() -> *const c_char;
     }

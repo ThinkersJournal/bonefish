@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.6
+
+- `bonefish-sys`: BLAS level 1 (`axpy scal copy swap dot nrm2 asum iamax`) and `gemv`, single and double precision, in `shim/blas1.cpp`. Tests are generated from one macro for both precisions and include strided access, `iamax` ties, a transposed `gemv` and a rejected `lda`. CPU/OpenCL device only (Windows laptop, Linux CI); GPU UNVERIFIED. Docs: the `sycl:` proposal now states that its witness proves reachability only, never device admission.
+
 ## 0.0.5
 
 - `bonefish-sycl-emit::target`: proposed `sycl:` capability-set vocabulary (36 tokens, each with the DPC++ release that first produces it; `intel_gpu_cri` arrives in 2026.2) with its KISS-CLASSIFY-6.8-0014 derivability witness and a named gate (`tests/sycl_target_tokens.rs`); `docs/sycl-namespace-proposal.md`. ROADMAP R7: icpx fast-math accuracy finding with measured flags. A proposal to KISS, not a registered namespace.
