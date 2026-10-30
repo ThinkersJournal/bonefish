@@ -4,8 +4,8 @@ Order matters: survey, then design, then code. Every code row ships with a negat
 
 | Row | What | Status |
 |-----|------|--------|
-| R0 | `ROADMAP.md`, CI (fmt, clippy, test, doc, cargo-deny, portfolio), then branch protection requiring them (PM) | review |
-| R1 | Survey and design note `docs/SURVEY.md`: options first, recommendation, no code. Covers the oneMKL SYCL interface (`oneapi::mkl::blas`, `dft`), the C++ shim shape, Level Zero, Linux and Windows builds, and what a parser and emitter for SYCL/DPC++ kernels owes Unpopped's contract | todo |
+| R0 | `ROADMAP.md`, CI (fmt, clippy, test, doc, cargo-deny, portfolio), then branch protection requiring them (PM) | done |
+| R1 | Survey and design note `docs/SURVEY.md`: options first, recommendation, no code. Covers the oneMKL SYCL interface (`oneapi::mkl::blas`, `dft`), the C++ shim shape, Level Zero, Linux and Windows builds, and what a parser and emitter for SYCL/DPC++ kernels owes Unpopped's contract | review |
 | R2 | `bonefish-sys`: the `extern "C"` shim over `oneapi::mkl::blas`, built with `icpx -fsycl`, depending on `onemkl-sys` from crates.io | todo |
 | R3 | `bonefish`: safe queue, buffer and BLAS API, then `dft` | todo |
 | R4 | SYCL/DPC++ parser and emitter on Unpopped's contract (`parser-emitter-ownership-map.md`, Unpopped ROADMAP 6.7) | todo |

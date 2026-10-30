@@ -1,6 +1,6 @@
 [package]
 name = "bonefish"
-version = "0.0.0"
+version = "0.0.1"
 edition = "2024"
 description = "Reserved name for Bonefish, a planned comprehensive Rust interface to Intel oneAPI / oneMKL GPU computing (SYCL/DPC++)."
 license = "MIT OR Apache-2.0"
