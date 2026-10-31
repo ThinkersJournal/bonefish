@@ -1,12 +1,10 @@
 name: intel-repro
 
 # Runs the standalone reproducers in docs/intel-report on a GitHub-hosted Linux runner and prints the
-# tables the Intel report quotes. Manual (or on pushes to the branch that edits the reproducers);
+# tables the Intel report quotes. Manual (workflow_dispatch);
 # not a required check. The runner CPU is assigned at random, so the log names it.
 on:
   workflow_dispatch:
-  push:
-    branches: [intel-report]
 
 permissions:
   contents: read

@@ -22,7 +22,7 @@ Windows in Git Bash from a oneAPI command prompt).
 
 | # | What we see | Where it reproduced | What we ask Intel |
 |---|---|---|---|
-| 1 | `gemm` called for the first time from several host threads at once crashes inside `mkl_sycl_blas` | **Reproduced on one machine (Windows, oneAPI 2026.1, 28/40 crashes); not reproduced on Linux/EPYC oneAPI 2026.2 (0/400).** Across 15 runner jobs in all (6 Linux, 5 Windows Server with 2026.2, 4 Windows Server with 2026.1, the same compiler build as the machine that crashed): 5997 of 6000 runs clean; the other 3 runs, all in one cell of one 2026.1 job, exited 127 (shell "command not found", not a crash code) and are **unexplained**; they did not recur in the 2 later 2026.1 jobs | Is first use from several threads meant to be safe (the specification says all oneMKL functions are host thread safe)? If so, please look at the crash; we can supply more logs. |
+| 1 | `gemm` called for the first time from several host threads at once crashes inside `mkl_sycl_blas` | **Reproduced on one machine (Windows, oneAPI 2026.1, 28/40 crashes); not reproduced on Linux/EPYC oneAPI 2026.2 (0/400).** Across 18 runner jobs in all (7 Linux, 6 Windows Server with 2026.2, 5 Windows Server with 2026.1, the same compiler build as the machine that crashed): 7197 of 7200 runs clean; the other 3 runs, all in one cell of one 2026.1 job, exited 127 (shell "command not found", not a crash code) and are **unexplained**; they did not recur in the 3 later 2026.1 jobs | Is first use from several threads meant to be safe (the specification says all oneMKL functions are host thread safe)? If so, please look at the crash; we can supply more logs. |
 | 2 | On an `in_order` queue, `dot` submitted right after `axpy`, `copy` or `gemm` does not wait for it: stale data in 97 to 100 of every 100 rounds. With the earlier call's event passed as a dependency it is correct. | **Reproduced on every machine tried**: Windows 11 laptop, Ubuntu 24.04 runners, Windows Server 2025 runners; oneAPI 2026.1 and 2026.2 | Please confirm whether `dot` should respect the in-order queue, and fix or document it. |
 | 3 | Committing a DFT descriptor of length 0 kills the process with SIGFPE on Intel Xeon CPUs (default dispatch) instead of throwing | **Reproduced on every Intel Xeon runner tried** (3 of 3); AMD EPYC runners, Windows Server on EPYC and the Windows 11 laptop throw `FFT_INVALID_DESCRIPTOR`; so do the Xeons with `MKL_ENABLE_INSTRUCTIONS=AVX2` | Please make an invalid length throw on every dispatch path. |
 
@@ -41,9 +41,9 @@ service and was read from the same job (`lscpu` or `Get-CimInstance`, and `sycl-
 | id | OS | CPU | DPC++ compiler | oneMKL (`mkl_version.h`) | OpenCL CPU runtime |
 |---|---|---|---|---|---|
 | M1 | Windows 11, 10.0.26300.9818 (laptop) | AMD Ryzen 9 7940HX, 32 logical CPUs | 2026.1.0 (2026.1.0.20260617) | 2026, minor 0, update 1 | 2026.21.7.0.24_160000 |
-| M2 | Ubuntu 24.04.5, kernel 7.0.0-1017-azure (runner, 4 vCPUs) | AMD EPYC 9V74 (4 jobs), AMD EPYC 7763 (2 jobs) | 2026.2.0 (2026.2.0.20261001), Intel apt repository | 2026, minor 0, update 2 | 2026.22.10.0.01_160000 |
-| M3 | Windows Server 2025 Datacenter, 10.0.26100 (runner) | AMD EPYC 9V45 (3 jobs), 9V74 (1 job), 7763 (1 job) | 2026.2.0 (2026.2.0.20261001), toolkit 2026.2.0.661 | 2026, minor 0, update 2 | 2026.22.10.0.01_160000 |
-| M4 | Windows Server 2025 Datacenter, 10.0.26100 (runner) | AMD EPYC 7763 (3 jobs), 9V45 (1 job) | 2026.1.0 (2026.1.0.20260617), toolkit 2026.1.0.191 | 2026, minor 0, update 1 | 2026.21.6.0.17_160000 |
+| M2 | Ubuntu 24.04.5, kernel 7.0.0-1017-azure (runner, 4 vCPUs) | AMD EPYC 9V74 (4 jobs), AMD EPYC 7763 (3 jobs) | 2026.2.0 (2026.2.0.20261001), Intel apt repository | 2026, minor 0, update 2 | 2026.22.10.0.01_160000 |
+| M3 | Windows Server 2025 Datacenter, 10.0.26100 (runner) | AMD EPYC 9V45 (3 jobs), 9V74 (2 jobs), 7763 (1 job) | 2026.2.0 (2026.2.0.20261001), toolkit 2026.2.0.661 | 2026, minor 0, update 2 | 2026.22.10.0.01_160000 |
+| M4 | Windows Server 2025 Datacenter, 10.0.26100 (runner) | AMD EPYC 7763 (4 jobs), 9V45 (1 job) | 2026.1.0 (2026.1.0.20260617), toolkit 2026.1.0.191 | 2026, minor 0, update 1 | 2026.21.6.0.17_160000 |
 | M5 | Ubuntu 24.04 (runner) | Intel Xeon Platinum 8370C (2 runners), 8573C (1 runner) | 2026.2.0 (2026.2.0.20261001) | 2026, minor 0, update 2 | 2026.22.10.0.01_160000 |
 
 M4 has the same compiler build as M1. M3 and M4 were installed from Intel's offline toolkit
@@ -111,18 +111,18 @@ named).
 
 | Machine (jobs) | `own` | `pre` | `shared` | `own` 1 thr | `own` 2 thr | alloc only (both) | `locked` | `warm1` | `warm` |
 |---|---|---|---|---|---|---|---|---|---|
-| M2 Ubuntu / EPYC, 2026.2 (6 jobs) | 40/40 clean in every job | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 |
-| M3 Windows Server, 2026.2 (5 jobs) | 40/40 in every job | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 |
-| M4 Windows Server, 2026.1 (4 jobs) | 40/40 in 3 jobs; **37/40 in one job (see below)** | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 |
+| M2 Ubuntu / EPYC, 2026.2 (7 jobs) | 40/40 clean in every job | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 |
+| M3 Windows Server, 2026.2 (6 jobs) | 40/40 in every job | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 |
+| M4 Windows Server, 2026.1 (5 jobs) | 40/40 in 4 jobs; **37/40 in one job (see below)** | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 |
 
-Totals over all 15 jobs (10 cells x 40 runs each): 6000 runs, 5997 clean, 3 not clean. M2: 2400 of
-2400 clean. M3: 2000 of 2000. M4: 1597 of 1600. **The 3 non-clean runs are unexplained.** They are
+Totals over all 18 jobs (10 cells x 40 runs each): 7200 runs, 7197 clean, 3 not clean. M2: 2800 of
+2800 clean. M3: 2400 of 2400. M4: 1997 of 2000. **The 3 non-clean runs are unexplained.** They are
 3 of the 40 runs of `own` (the first cell of the script, so run soon after the executable was
 built; which of the 40 runs they were was not recorded) in one M4 job (CPU: EPYC 9V45); each exited 127, which a POSIX shell uses for "command not found" and
 is not a Windows crash code, and the run's output had been discarded, so we do not know whether it
 was the executable failing to start or the crash of finding 1. The script now prints the output of
-the first non-clean run in every cell; the three jobs run after that
-change (one each on M2, M3 and M4) had no non-clean run, so there is still no captured output of it. Treat it as a possible
+the first non-clean run in every cell; the six jobs run after that
+change (two each on M2, M3 and M4) had no non-clean run, so there is still no captured output of it. Treat it as a possible
 sighting of finding 1 on a runner, not as one.
 
 Apart from those 3, **the crash was not reproduced on any runner**, including M4, which has the
@@ -180,7 +180,7 @@ answers: `axpy`->`dot` 70 (stale 10), `copy`->`dot` 30, `gemm`->`dot` 64.
 
 ## Results (wrong rounds out of 100; three runs of the program per job, min to max)
 
-| first call -> second | M1 | M2 (6 jobs, 18 runs) | M3 (5 jobs, 15 runs) | M4 (4 jobs, 12 runs) | with explicit dependency (all machines) |
+| first call -> second | M1 | M2 (7 jobs, 21 runs) | M3 (6 jobs, 18 runs) | M4 (5 jobs, 15 runs) | with explicit dependency (all machines) |
 |---|---|---|---|---|---|
 | `axpy` -> `dot` | 98 to 100 | 98 to 100 | 98 to 100 | 97 to 100 | 0 |
 | `copy` -> `dot` | 100 | 99 to 100 | 98 to 100 | 98 to 100 | 0 |
@@ -242,8 +242,8 @@ crash. Exit 0 ok, 3 wrong, 4 threw; a crash is the finding.
 | valid lengths 2, 4, 5, 8, 12, 16, 30, 64, 100 x single/double x in-place/out-of-place (36 configurations) | all correct on 3 Intel Xeon runners | all correct on 13 AMD runners |
 
 Also measured with the same reproducer, `n = 0`: M1 (Windows 11, oneAPI 2026.1) threw; so did all
-15 runner jobs of finding 1 (6 on M2, 5 on M3, 4 on M4; 4 configurations each, default dispatch and
-AVX2: 120 of 120 threw). **Windows on an Intel CPU was not measured.**
+18 runner jobs of finding 1 (7 on M2, 6 on M3, 5 on M4; 4 configurations each, default dispatch and
+AVX2: 144 of 144 threw). **Windows on an Intel CPU was not measured.**
 
 The same crash was first found through a Rust test that creates a descriptor of length 0 and
 expects an error: that test binary died with SIGFPE in 30 of 30 runs on a Xeon 8370C with default
