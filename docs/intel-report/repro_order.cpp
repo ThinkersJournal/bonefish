@@ -1,6 +1,6 @@
 // Standalone reproducer, finding 2 of docs/INTEL-REPORT-DRAFT.md: on a queue created with
 // sycl::property::queue::in_order, a oneMKL `dot` submitted right after another oneMKL call does
-// not wait for it. No Rust, no bonefish code; one thread.
+// not wait for it. Plain C++ with SYCL and oneMKL only; one thread.
 //
 // Build (oneAPI DPC++ compiler, MKL on the include/library path, e.g. after setvars):
 //   icpx -fsycl -O2 -qmkl=parallel repro_order.cpp -o repro_order
