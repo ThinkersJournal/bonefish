@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.12
+
+- `bonefish`: the scoped non-blocking API (R3c step 2, `docs/ASYNC-DESIGN.md`). `Queue::scope(|s| ...)` gives a `Scope` on which `gemm`/`gemm_after` (f32, f64) return an `Event<'scope>` without waiting; buffers are bound once with `s.read(&buf)` / `s.write(&mut buf)` (a `Read`/`Write` handle holding a shared/exclusive borrow until the scope ends), and the scope waits for the queue on normal return, on error and on panic, then returns the first asynchronous error. Bounds are checked as in the blocking `gemm`; an output that is also an input of the same call is `InvalidArgument`; a buffer from another queue is `QueueMismatch` at binding. `Scope` is `Send` and `!Sync`. The blocking functions are unchanged.
+- Pinned by tests: `compile_fail,E0502` (host read while bound for writing), `compile_fail,E0505` (drop while bound for reading), a compile_fail that an `Event` cannot leave the scope (the compiler's error is "lifetime may not live long enough" at the returned value), `compile_fail,E0277` for `Scope: Sync` with a `Send` control; `tests/scope.rs` (dependent chain, explicit event dependency, queue mismatch, aliasing, bounds, **a panic inside the scope still waits**: mutation-checked, with the wait disarmed that test fails 12 of 12 runs, and passes with it); an in-crate test that an asynchronous failure comes back from `scope` and is not reported twice.
+- Not shown: that in-order matters for correctness on any device (the CPU device ran an out-of-order queue in order, ROADMAP R3c); any GPU. Level 1/`gemv` and `Dft` are still blocking-only.
+- Version number is a placeholder for the PM (stacks after 0.0.11).
+
 ## 0.0.11
 
 - `bonefish-sys`: the non-blocking shim layer (R3c step 1, `docs/ASYNC-DESIGN.md`). Every queue is now in-order and has an `async_handler`; new `bf_sgemm_async`/`bf_dgemm_async` (return a `sycl::event*`, take an array of dependency events; only the submission is under the oneMKL lock), `bf_event_wait`, `bf_event_free`, `bf_queue_wait`, `bf_queue_is_in_order`, and a diagnostic `bf_test_async_failure`. Asynchronous errors come back as status 1 through both wait calls. No safe-API change yet (the scoped API is step 2), so no `bonefish` behaviour changes except that its queues are in-order.

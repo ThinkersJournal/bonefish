@@ -5,9 +5,11 @@
 //! - [`blas::gemm`]: matrix multiply, `f32` and `f64`.
 //! - [`Dft`]: complex-to-complex FFTs, `f32` and `f64`, 1-D and N-D.
 //!
-//! Every operation is blocking, and every buffer extent is checked in Rust before the device is
-//! touched, so a safe call cannot read or write outside a [`UsmBuffer`]. There is no `Event`
-//! type yet: with blocking calls there is nothing for one to represent (see `ROADMAP.md`).
+//! The plain operations are blocking. For work that runs while the host continues, see
+//! [`Queue::scope`]: inside a scope, operations return an [`Event`] immediately and the scope
+//! waits for everything on its way out, so the borrow checker can keep the host away from buffers
+//! the device is still using. Every buffer extent is checked in Rust before the device is
+//! touched, so a safe call cannot read or write outside a [`UsmBuffer`].
 //!
 //! # Building without oneAPI
 //!
@@ -24,6 +26,7 @@ mod dft;
 mod error;
 mod queue;
 mod scalar;
+mod scope;
 mod usm;
 
 pub use blas::Transpose;
@@ -31,6 +34,7 @@ pub use dft::{Dft, Placement};
 pub use error::{Error, Result};
 pub use queue::{DeviceKind, Queue};
 pub use scalar::{Complex, Element, Scalar};
+pub use scope::{Event, Operand, Read, Scope, Write};
 pub use usm::{UsmBuffer, UsmKind};
 
 /// Whether the SYCL shim was built into this binary.

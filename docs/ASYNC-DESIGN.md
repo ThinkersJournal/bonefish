@@ -29,6 +29,8 @@ queue.scope(|s| -> Result<()> {
 - `Event<'scope>` wraps a `sycl::event*`; it cannot outlive the scope; dropping it only frees the handle (a leak costs memory, never safety).
 - The blocking functions stay (`blas::gemm`, `Dft::forward_*`), implemented as "submit, wait".
 
+**Implemented (0.0.12), differences from the sketch below:** operations take any `Operand` (a `Read` or a `Write`) as input and a `&Write` as output, so a result can feed the next operation; an output that is also an input of the same call is refused at run time (`InvalidArgument`), since the types alone cannot say two handles name one buffer; `gemm_after(&[&event], ...)` is the explicit-dependency form and `gemm` is `gemm_after(&[], ...)`; the scope's wait result is combined as "the closure's error, else the first asynchronous error, else the value".
+
 ## 3. Why this is sound, and what it depends on
 
 1. **Host cannot touch a bound buffer.** `read` keeps `&'scope UsmBuffer` alive and `write` keeps `&'scope mut`; the host's `as_slice`/`to_vec`/`copy_from_slice` need `&`/`&mut` on the same buffer and are rejected by the borrow checker until the scope ends. Pinned by `compile_fail,E0502` / `E0505` doctests (read or drop while bound).
