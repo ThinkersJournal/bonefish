@@ -2,7 +2,7 @@
 
 use std::ffi::{c_char, c_void};
 use std::ptr::NonNull;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use bonefish_sys as sys;
 
@@ -23,10 +23,40 @@ struct Inner {
     raw: NonNull<c_void>,
 }
 
+// SAFETY: sharing and moving a queue between threads rests on two different things, and the
+// second is NOT the specification:
+//
+// 1. SYCL calls (queue creation, allocation, copies, free). SYCL 2020 (rev 12), chapter 4
+//    introduction, verbatim: "All functions defined in this specification are thread-safe, unless
+//    otherwise specified." Section 4.6.5 (queue) reported no exception. Tested: four threads
+//    allocating and freeing with shared and per-thread queues passed 25 of 25 runs in a
+//    standalone C++ program (oneAPI 2026.1, Windows, CPU device).
+// 2. oneMKL calls (BLAS, DFT). The oneAPI specification says, verbatim, "All oneMKL member and
+//    non-member functions shall be host thread safe." **The shipped oneMKL did not honour that.**
+//    Measured with oneAPI 2026.1 on Windows, CPU/OpenCL device: concurrent first use of
+//    `gemm` from four threads crashed inside `mkl_sycl_blas.6.dll` in 28 of 40 runs of a
+//    standalone C++ program, and in 15 of 15 fresh-process runs of the Rust threading tests
+//    (exception 0xC06D007F or an access violation); on Linux CI (oneAPI 2026.2) the same tests
+//    hung. So every oneMKL call in the shim takes one process-wide mutex (`bf::MklLock`), which
+//    makes these calls thread-safe by our construction, not by Intel's claim: 15 of 15 and 20 of
+//    20 fresh-process runs pass with it. See `ROADMAP.md` R3b for the full numbers and the A/B.
+//
+// The spec also says "oneMKL objects in class-based APIs may not be shared between concurrent host
+// threads unless otherwise specified", and `Dft` stays neither `Send` nor `Sync` until a test of
+// sharing one plan says otherwise (the lock serialises the calls, which is not the same as having
+// shown that sharing a plan is sound).
+//
+// Limits: spec texts were read through a summariser and cross-checked by a second search; no
+// Intel product-level thread-safety statement was found; the stress results are CPU-device only
+// and no GPU has run any of this.
+unsafe impl Send for Inner {}
+// SAFETY: as above.
+unsafe impl Sync for Inner {}
+
 impl Drop for Inner {
     fn drop(&mut self) {
         // SAFETY: `raw` came from `bf_queue_new` and is freed exactly once, here, after every
-        // buffer and plan that holds this queue has been dropped (they hold an `Rc`).
+        // buffer and plan that holds this queue has been dropped (they hold an `Arc`).
         unsafe { sys::bf_queue_free(self.raw.as_ptr()) }
     }
 }
@@ -34,10 +64,19 @@ impl Drop for Inner {
 /// A SYCL queue on one device. Cloning shares the same queue; it is released when the last clone
 /// and the last buffer or plan made from it are dropped.
 ///
-/// Not `Send` or `Sync`: whether a `sycl::queue` may be used from several threads is not
-/// something this crate has verified, so it does not claim it.
+/// `Send + Sync`: one queue may be shared by several host threads, which may each allocate, copy
+/// and call [`blas::gemm`](crate::blas::gemm) on it.
+///
+/// Read this before relying on it. The oneAPI specification promises that oneMKL calls are host
+/// thread safe, and the shipped oneMKL tested here (2026.1, Windows, CPU device) is **not**: its
+/// first concurrent use crashes. This crate therefore serialises every oneMKL call behind one
+/// process-wide lock, so oneMKL calls from different threads take turns (SYCL allocation and
+/// copies still run concurrently). The thread-safety of those calls is the lock's, not Intel's.
+/// Details, numbers and the unverified parts (any GPU, other oneMKL releases) are in the source
+/// comment above and in `ROADMAP.md` R3b. A [`Dft`](crate::Dft) made from a queue is not
+/// shareable between threads.
 #[derive(Clone)]
-pub struct Queue(Rc<Inner>);
+pub struct Queue(Arc<Inner>);
 
 impl Queue {
     /// Create a queue.
@@ -55,7 +94,7 @@ impl Queue {
         // SAFETY: plain call; a null return is handled below.
         let raw = unsafe { sys::bf_queue_new(code) };
         match NonNull::new(raw) {
-            Some(raw) => Ok(Queue(Rc::new(Inner { raw }))),
+            Some(raw) => Ok(Queue(Arc::new(Inner { raw }))),
             None if !sys::SYCL_AVAILABLE => Err(Error::Unavailable(last_message())),
             None => Err(Error::Sycl(last_message())),
         }
@@ -87,7 +126,7 @@ impl Queue {
     /// Whether `other` is the same underlying queue (not merely an equal device).
     #[must_use]
     pub fn same_as(&self, other: &Queue) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
+        Arc::ptr_eq(&self.0, &other.0)
     }
 
     pub(crate) fn raw(&self) -> *mut c_void {
