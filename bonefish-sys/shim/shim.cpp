@@ -1,12 +1,88 @@
 // extern "C" shim over oneapi::mkl (SYCL). Opaque handles only; no C++ type crosses the boundary.
 #include "common.hpp"
 
+#include <chrono>
 #include <cstring>
+#include <memory>
+#include <mutex>
+#include <vector>
 
 thread_local std::string bf::g_last_error;
 
 using bf::guard;
 using bf::Q;
+
+namespace {
+// Freed queues are RETIRED, not destroyed at once, and destroyed only after a grace period (and
+// after a wait_and_throw). Measured (Windows, oneAPI 2026.1, CPU device): with four threads each
+// looping {new queue, a failing host task, one wait, free the queue}, destroying the queue at once
+// killed the process in 25 of 25 runs ("Default async_handler caught exceptions ... terminate
+// called"), because a wait can return a little BEFORE the runtime posts the task's error; the
+// error then arrives at a queue that no longer exists, goes to SYCL's default handler, and that
+// terminates the process. One thread: 0 of 25. With the grace period the 4-thread run survived
+// (see ROADMAP R10 for the numbers and what is not shown). The grace period is a heuristic about
+// how late an error can be posted, not a proof; the real bound is unknown.
+//
+// The retired list is leaked on purpose and never destroyed at process exit: destroying SYCL
+// objects from a static destructor races the runtime's own shutdown.
+using Clock = std::chrono::steady_clock;
+
+struct Retired {
+  std::unique_ptr<bf::BfQueue> q;
+  Clock::time_point at;
+};
+
+std::mutex &retired_mutex() {
+  static auto *m = new std::mutex;
+  return *m;
+}
+
+std::vector<Retired> &retired() {
+  static auto *v = new std::vector<Retired>;
+  return *v;
+}
+
+// BONEFISH_UNSAFE_QUEUE_GRACE_MS overrides the grace period (milliseconds). A diagnostic for
+// A/B runs, not a feature: 0 destroys a queue as soon as it has been waited on.
+Clock::duration grace() {
+  static const Clock::duration g = [] {
+    long ms = 2000;
+    if (const char *e = std::getenv("BONEFISH_UNSAFE_QUEUE_GRACE_MS")) {
+      char *end = nullptr;
+      long v = std::strtol(e, &end, 10);
+      if (end != e && v >= 0) ms = v;
+    }
+    return std::chrono::duration_cast<Clock::duration>(std::chrono::milliseconds(ms));
+  }();
+  return g;
+}
+
+// Destroy every retired queue whose grace period is over: wait for it first, so its work finishes
+// and its errors go to its own handler while it is still alive.
+void sweep_retired() {
+  std::vector<std::unique_ptr<bf::BfQueue>> due;
+  {
+    std::lock_guard<std::mutex> lock(retired_mutex());
+    const auto now = Clock::now();
+    auto &v = retired();
+    for (size_t i = 0; i < v.size();) {
+      if (now - v[i].at >= grace()) {
+        due.push_back(std::move(v[i].q));
+        v.erase(v.begin() + static_cast<std::ptrdiff_t>(i));
+      } else {
+        i++;
+      }
+    }
+  }
+  for (auto &q : due) {
+    try {
+      q->q.wait_and_throw();
+    } catch (...) {
+    }
+    q.reset();
+  }
+}
+} // namespace
 
 namespace {
 oneapi::mkl::transpose T(int32_t t) {
@@ -24,6 +100,7 @@ oneapi::mkl::transpose T(int32_t t) {
 // it, so asynchronous submissions are also chained explicitly (common.hpp, `deps_chained`).
 // See docs/ASYNC-DESIGN.md sections 3.4 and 5.
 BF_API void *bf_queue_new(int32_t kind) {
+  sweep_retired();
   void *out = nullptr;
   guard([&] {
     const sycl::property_list props{sycl::property::queue::in_order()};
@@ -37,8 +114,16 @@ BF_API void *bf_queue_new(int32_t kind) {
   return out;
 }
 
-// Errors nobody collected die with the queue: the store belongs to it.
-BF_API void bf_queue_free(void *q) { delete static_cast<bf::BfQueue *>(q); }
+// The queue is retired and destroyed after a grace period (see `Retired` above). Errors nobody
+// collected die with it: the store belongs to the queue.
+BF_API void bf_queue_free(void *q) {
+  if (!q) return;
+  {
+    std::lock_guard<std::mutex> lock(retired_mutex());
+    retired().push_back(Retired{std::unique_ptr<bf::BfQueue>(static_cast<bf::BfQueue *>(q)), Clock::now()});
+  }
+  sweep_retired();
+}
 
 BF_API int32_t bf_queue_is_in_order(void *q) {
   int32_t r = -1;

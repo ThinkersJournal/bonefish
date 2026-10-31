@@ -56,7 +56,10 @@ unsafe impl Sync for Inner {}
 impl Drop for Inner {
     fn drop(&mut self) {
         // SAFETY: `raw` came from `bf_queue_new` and is freed exactly once, here, after every
-        // buffer and plan that holds this queue has been dropped (they hold an `Arc`).
+        // buffer and plan that holds this queue has been dropped (they hold an `Arc`). The shim
+        // does not destroy it at once: it retires the queue and destroys it after a grace
+        // period, because an error posted a moment after the last wait would otherwise reach a
+        // destroyed queue and terminate the process (ROADMAP R10).
         unsafe { sys::bf_queue_free(self.raw.as_ptr()) }
     }
 }
