@@ -19,27 +19,25 @@ oneapi::mkl::transpose T(int32_t t) {
 } // namespace
 
 // kind: 0 default selector, 1 cpu, 2 gpu. Returns null on failure (see bf_last_error).
-// Every queue is in-order (work on one queue runs in submission order) and has an async_handler;
-// both are required by the non-blocking API (docs/ASYNC-DESIGN.md sections 3.4 and 5).
+// Every queue is in-order (work on one queue runs in submission order) and has an async_handler
+// that records into the queue's own error store; both are required by the non-blocking API
+// (docs/ASYNC-DESIGN.md sections 3.4 and 5).
 BF_API void *bf_queue_new(int32_t kind) {
   void *out = nullptr;
   guard([&] {
     const sycl::property_list props{sycl::property::queue::in_order()};
+    auto store = std::make_shared<bf::ErrStore>();
     switch (kind) {
-    case 1: out = new sycl::queue{sycl::cpu_selector_v, bf::async_handler, props}; break;
-    case 2: out = new sycl::queue{sycl::gpu_selector_v, bf::async_handler, props}; break;
-    default: out = new sycl::queue{sycl::default_selector_v, bf::async_handler, props}; break;
+    case 1: out = new bf::BfQueue{sycl::cpu_selector_v, store, props}; break;
+    case 2: out = new bf::BfQueue{sycl::gpu_selector_v, store, props}; break;
+    default: out = new bf::BfQueue{sycl::default_selector_v, store, props}; break;
     }
   });
   return out;
 }
 
-// Destroying a queue may run its async_handler for errors nobody collected; those must not be
-// attributed to the next queue waited on from this thread, so they are dropped.
-BF_API void bf_queue_free(void *q) {
-  delete static_cast<sycl::queue *>(q);
-  bf::g_async_errors.clear();
-}
+// Errors nobody collected die with the queue: the store belongs to it.
+BF_API void bf_queue_free(void *q) { delete static_cast<bf::BfQueue *>(q); }
 
 BF_API int32_t bf_queue_is_in_order(void *q) {
   int32_t r = -1;
@@ -47,27 +45,27 @@ BF_API int32_t bf_queue_is_in_order(void *q) {
   return r;
 }
 
-// Wait for everything submitted to the queue; returns 1 if that surfaced an asynchronous error.
+// Wait for everything submitted to the queue; returns 1 if that surfaced an asynchronous error
+// (this queue's, whichever thread SYCL ran the handler on).
 BF_API int32_t bf_queue_wait(void *q) {
-  bf::g_async_errors.clear();
   int32_t rc = guard([&] { Q(q).wait_and_throw(); });
-  int32_t arc = bf::drain_async_errors();
+  int32_t arc = bf::drain_async_errors(*bf::Store(q));
   return rc != 0 ? rc : arc;
 }
 
-// Events are heap-allocated sycl::event handles returned by the *_async functions.
+// Events are heap-allocated handles (the sycl::event plus its queue's error store) returned by the
+// *_async functions.
 BF_API int32_t bf_event_wait(void *e) {
   if (!e) {
     bf::g_last_error = "null event";
     return 3;
   }
-  bf::g_async_errors.clear();
   int32_t rc = guard([&] { bf::E(e).wait_and_throw(); });
-  int32_t arc = bf::drain_async_errors();
+  int32_t arc = bf::drain_async_errors(*static_cast<bf::BfEvent *>(e)->store);
   return rc != 0 ? rc : arc;
 }
 
-BF_API void bf_event_free(void *e) { delete static_cast<sycl::event *>(e); }
+BF_API void bf_event_free(void *e) { delete static_cast<bf::BfEvent *>(e); }
 
 // Diagnostic for the tests: submit a host task that throws, which SYCL reports asynchronously.
 // Returns the event, or null on failure. Lets a test prove an asynchronous failure arrives as a
@@ -75,9 +73,12 @@ BF_API void bf_event_free(void *e) { delete static_cast<sycl::event *>(e); }
 BF_API void *bf_test_async_failure(void *q) {
   void *out = nullptr;
   guard([&] {
-    out = new sycl::event(Q(q).submit([&](sycl::handler &h) {
-      h.host_task([] { throw std::runtime_error("bonefish test: forced asynchronous failure"); });
-    }));
+    out = new bf::BfEvent{Q(q).submit([&](sycl::handler &h) {
+                            h.host_task([] {
+                              throw std::runtime_error("bonefish test: forced asynchronous failure");
+                            });
+                          }),
+                          bf::Store(q)};
   });
   return out;
 }
@@ -137,9 +138,10 @@ void *gemm_async(void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t 
                  void *const *deps, int64_t n_deps) {
   void *out = nullptr;
   bf::guard_mkl([&] {
-    out = new sycl::event(oneapi::mkl::blas::column_major::gemm(
-        Q(q), T(ta), T(tb), m, n, k, alpha, a, lda, b, ldb, beta, c, ldc,
-        bf::deps_of(deps, n_deps)));
+    out = new bf::BfEvent{oneapi::mkl::blas::column_major::gemm(
+                              Q(q), T(ta), T(tb), m, n, k, alpha, a, lda, b, ldb, beta, c, ldc,
+                              bf::deps_of(deps, n_deps)),
+                          bf::Store(q)};
   });
   return out;
 }

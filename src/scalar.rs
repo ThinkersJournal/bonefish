@@ -77,10 +77,37 @@ pub trait Scalar: Element {
         c: *mut Self,
         ldc: i64,
     ) -> i32;
+
+    /// Non-blocking `gemm`: returns the event handle, or null on failure (see `bf_last_error`).
+    ///
+    /// # Safety
+    /// As [`Scalar::gemm`], and in addition the operands must stay alive, and `c` untouched by
+    /// the host, until the returned event (or the queue) has been waited on. `deps` points at
+    /// `n_deps` live event handles from this queue.
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn gemm_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: Self,
+        a: *const Self,
+        lda: i64,
+        b: *const Self,
+        ldb: i64,
+        beta: Self,
+        c: *mut Self,
+        ldc: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
 }
 
 macro_rules! scalar {
-    ($t:ty, $prec:expr, $gemm:ident) => {
+    ($t:ty, $prec:expr, $gemm:ident, $gemm_async:ident) => {
         impl Scalar for $t {
             const PREC: i32 = $prec;
             unsafe fn gemm(
@@ -102,8 +129,33 @@ macro_rules! scalar {
                 // SAFETY: forwarded from the caller's contract above.
                 unsafe { sys::$gemm(q, ta, tb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc) }
             }
+            unsafe fn gemm_async(
+                q: *mut c_void,
+                ta: i32,
+                tb: i32,
+                m: i64,
+                n: i64,
+                k: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *const Self,
+                ldb: i64,
+                beta: Self,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: forwarded from the caller's contract above.
+                unsafe {
+                    sys::$gemm_async(
+                        q, ta, tb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, deps, n_deps,
+                    )
+                }
+            }
         }
     };
 }
-scalar!(f32, 0, bf_sgemm);
-scalar!(f64, 1, bf_dgemm);
+scalar!(f32, 0, bf_sgemm, bf_sgemm_async);
+scalar!(f64, 1, bf_dgemm, bf_dgemm_async);

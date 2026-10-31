@@ -273,3 +273,193 @@ fn waiting_on_a_null_event_is_an_error_not_a_crash() {
     let rc = unsafe { bf_event_wait(std::ptr::null_mut()) };
     assert_eq!(rc, 3);
 }
+
+/// Is an asynchronous error still reported when the caller drops the event before waiting on the
+/// queue? The scoped safe API drops events freely, so its "the scope returns the first
+/// asynchronous error" promise depends on the answer. Measured per variant over many fresh
+/// queues; the summary line is printed so a CI log shows which variant lost errors.
+///   A: event kept until after `bf_queue_wait`
+///   B: event freed right after submission, then `bf_queue_wait`
+///   C: as B, with a pause before the wait (separates "lost with the event" from "not yet posted")
+#[test]
+fn asynchronous_error_survives_dropping_the_event_before_the_queue_wait() {
+    watchdog(
+        "asynchronous_error_survives_dropping_the_event",
+        120,
+        || {
+            let _g = serial();
+            const N: usize = 100;
+            let mut lost = [0usize; 3];
+            for i in 0..N {
+                for (variant, slot) in lost.iter_mut().enumerate() {
+                    let q = Queue::new();
+                    let e = unsafe { bf_test_async_failure(q.0) };
+                    assert!(!e.is_null(), "{}", last_error());
+                    if variant != 0 {
+                        unsafe { bf_event_free(e) };
+                    }
+                    if variant == 2 {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
+                    let rc = unsafe { bf_queue_wait(q.0) };
+                    if variant == 0 {
+                        unsafe { bf_event_free(e) };
+                    }
+                    if rc != 1 {
+                        *slot += 1;
+                    }
+                    let _ = i;
+                }
+            }
+            eprintln!(
+                "ASYNC-ERROR-LOSS over {N} fresh queues: A(event kept)={} B(event freed)={} C(freed+50ms)={}",
+                lost[0], lost[1], lost[2]
+            );
+            assert_eq!(
+                lost,
+                [0, 0, 0],
+                "lost errors out of {N}: A(event kept)={} B(event freed)={} C(freed, 50 ms pause)={}",
+                lost[0],
+                lost[1],
+                lost[2]
+            );
+        },
+    );
+}
+
+/// The shape that lost an error once on Linux CI (the in-crate `scope` test): the queue has
+/// already been waited on once, then a failing host task is submitted, its event freed, and the
+/// queue waited on, repeatedly on one reused queue with nothing else running. Every wait must
+/// report. (With other threads active the first wait can come back early; see
+/// `a_missed_asynchronous_error_is_reported_by_a_later_wait`.)
+#[test]
+fn asynchronous_error_is_not_lost_on_a_reused_queue() {
+    watchdog("asynchronous_error_reused_queue", 120, || {
+        let _g = serial();
+        const N: usize = 150;
+        let q = Queue::new();
+        let mut lost = 0usize;
+        for _ in 0..N {
+            // The control wait must be clean.
+            assert_eq!(unsafe { bf_queue_wait(q.0) }, 0, "{}", last_error());
+            let e = unsafe { bf_test_async_failure(q.0) };
+            assert!(!e.is_null());
+            unsafe { bf_event_free(e) };
+            if unsafe { bf_queue_wait(q.0) } != 1 {
+                lost += 1;
+            }
+        }
+        assert_eq!(
+            lost, 0,
+            "{lost} of {N} sequential failures were not reported"
+        );
+    });
+}
+
+/// Errors must be attributed to the queue that failed. Two threads fail on their own queues while
+/// two other threads wait on queues that never fail; a clean queue must never report an error.
+/// (With a per-thread error list this reported foreign errors and lost about half of the real
+/// ones; errors are now kept per queue.)
+#[test]
+fn a_clean_queue_never_reports_another_queues_asynchronous_error() {
+    watchdog("clean_queue_never_reports_foreign_error", 120, || {
+        let _g = serial();
+        const N: usize = 150;
+        let handles: Vec<_> = (0..4)
+            .map(|t| {
+                std::thread::spawn(move || {
+                    let q = Queue::new();
+                    let failing = t < 2;
+                    let mut wrong = 0usize;
+                    for _ in 0..N {
+                        if failing {
+                            let e = unsafe { bf_test_async_failure(q.0) };
+                            assert!(!e.is_null());
+                            unsafe { bf_event_free(e) };
+                        }
+                        let rc = unsafe { bf_queue_wait(q.0) };
+                        // A failing queue must report; a clean queue must not.
+                        if (rc == 1) != failing {
+                            wrong += 1;
+                        }
+                    }
+                    (failing, wrong)
+                })
+            })
+            .collect();
+        let (mut lost, mut foreign) = (0usize, 0usize);
+        for h in handles {
+            let (failing, wrong) = h.join().unwrap();
+            if failing {
+                lost += wrong;
+            } else {
+                foreign += wrong;
+            }
+        }
+        // `lost` is informational: a failing queue's first wait can return before the runtime has
+        // posted the error (a later wait reports it, see the next test). A clean queue reporting
+        // an error is a wrong attribution and must never happen.
+        eprintln!(
+            "ASYNC-ERROR-ATTRIBUTION failing queues' first wait missed={lost}; clean queues reported a foreign error={foreign} (of {N} per thread)"
+        );
+        assert_eq!(
+            foreign, 0,
+            "a clean queue reported another queue's asynchronous error {foreign} times"
+        );
+    });
+}
+
+/// Classifies a missed error: when the first `bf_queue_wait` after a failure returns 0, is the
+/// error gone, or does a later wait on the same queue still report it? Four threads, each on its
+/// own queue, failing and freeing the event as above. `missed` counts first waits that returned
+/// 0; `recovered` counts those where polling the same queue for up to 2 s then returned 1.
+#[test]
+fn a_missed_asynchronous_error_is_reported_by_a_later_wait() {
+    watchdog("missed_error_is_reported_later", 240, || {
+        let _g = serial();
+        const N: usize = 150;
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                std::thread::spawn(move || {
+                    let q = Queue::new();
+                    let (mut missed, mut recovered) = (0usize, 0usize);
+                    for _ in 0..N {
+                        let e = unsafe { bf_test_async_failure(q.0) };
+                        assert!(!e.is_null());
+                        unsafe { bf_event_free(e) };
+                        if unsafe { bf_queue_wait(q.0) } == 1 {
+                            continue;
+                        }
+                        missed += 1;
+                        let deadline =
+                            std::time::Instant::now() + std::time::Duration::from_secs(2);
+                        while std::time::Instant::now() < deadline {
+                            std::thread::sleep(std::time::Duration::from_millis(1));
+                            if unsafe { bf_queue_wait(q.0) } == 1 {
+                                recovered += 1;
+                                break;
+                            }
+                        }
+                    }
+                    (missed, recovered)
+                })
+            })
+            .collect();
+        let (mut missed, mut recovered) = (0usize, 0usize);
+        for h in handles {
+            let (m, r) = h.join().unwrap();
+            missed += m;
+            recovered += r;
+        }
+        eprintln!(
+            "ASYNC-ERROR-LATE first wait missed={missed} later wait recovered={recovered} (of {} failures)",
+            4 * N
+        );
+        assert_eq!(
+            missed,
+            recovered,
+            "of {} failures, {missed} were missed by the first wait and only {recovered} were reported later",
+            4 * N
+        );
+    });
+}

@@ -18,7 +18,7 @@ pub enum Transpose {
 }
 
 impl Transpose {
-    fn code(self) -> i32 {
+    pub(crate) fn code(self) -> i32 {
         match self {
             Transpose::No => 0,
             Transpose::Trans => 1,
@@ -57,7 +57,7 @@ pub(crate) fn check_matrix(
     Ok(())
 }
 
-fn dim(name: &str, v: usize) -> Result<i64> {
+pub(crate) fn dim(name: &str, v: usize) -> Result<i64> {
     i64::try_from(v).map_err(|_| Error::InvalidArgument(format!("{name} = {v} exceeds i64")))
 }
 

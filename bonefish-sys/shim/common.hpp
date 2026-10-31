@@ -4,6 +4,7 @@
 #include <oneapi/mkl.hpp>
 
 #include <atomic>
+#include <memory>
 #include <cstdint>
 #include <cstdlib>
 #include <mutex>
@@ -20,7 +21,6 @@ namespace bf {
 // One slot per thread; defined once in shim.cpp, read through bf_last_error().
 extern thread_local std::string g_last_error;
 
-inline sycl::queue &Q(void *q) { return *static_cast<sycl::queue *>(q); }
 
 // Run f, mapping exceptions to status codes: 0 ok, 1 SYCL error, 2 oneMKL error, 3 other.
 template <class F> int32_t guard(F &&f) {
@@ -43,37 +43,66 @@ template <class F> int32_t guard(F &&f) {
 }
 
 // Asynchronous SYCL errors (raised after submission, for example by a kernel or a host task) reach
-// the queue's async_handler only when the host calls wait_and_throw/throw_asynchronous, and the
-// handler runs on that calling thread. So the handler appends to a per-thread list and the wait
-// functions (`bf_queue_wait`, `bf_event_wait`) drain it right after, turning it into a status code.
-inline thread_local std::vector<std::string> g_async_errors;
+// the queue's async_handler only when the host calls wait_and_throw/throw_asynchronous. The
+// handler is the queue's, but it is NOT guaranteed to run on the thread that is waiting: measured
+// on Windows (oneAPI 2026.1, CPU device), with a per-thread list four threads on four queues lost
+// about half of the errors (138 of 300 on failing queues) and a clean queue sometimes reported
+// another queue's error. So the errors are kept per queue, in a store the handler captures, and
+// the wait functions drain the store of the queue (or event) they were called on.
+struct ErrStore {
+  std::mutex m;
+  std::vector<std::string> errs;
+};
 
-inline void async_handler(sycl::exception_list errs) {
-  for (const std::exception_ptr &p : errs) {
-    try {
-      std::rethrow_exception(p);
-    } catch (const std::exception &e) {
-      g_async_errors.emplace_back(e.what());
-    } catch (...) {
-      g_async_errors.emplace_back("unknown asynchronous exception");
-    }
+// The handle behind every `void *q` the C API hands out.
+struct BfQueue {
+  std::shared_ptr<ErrStore> store;
+  sycl::queue q;
+  template <class Selector>
+  BfQueue(const Selector &sel, std::shared_ptr<ErrStore> s, const sycl::property_list &props)
+      : store(s), q(sel, make_handler(s), props) {}
+
+  static sycl::async_handler make_handler(std::shared_ptr<ErrStore> s) {
+    return [s](sycl::exception_list errs) {
+      std::lock_guard<std::mutex> lock(s->m);
+      for (const std::exception_ptr &p : errs) {
+        try {
+          std::rethrow_exception(p);
+        } catch (const std::exception &e) {
+          s->errs.emplace_back(e.what());
+        } catch (...) {
+          s->errs.emplace_back("unknown asynchronous exception");
+        }
+      }
+    };
   }
-}
+};
 
-// 0 when nothing was raised; otherwise 1 (SYCL error) with every message joined in g_last_error.
-inline int32_t drain_async_errors() {
-  if (g_async_errors.empty()) return 0;
+// The handle behind every `void *e`: the event, plus the store of the queue it was submitted to,
+// so waiting on an event can report that queue's asynchronous errors.
+struct BfEvent {
+  sycl::event e;
+  std::shared_ptr<ErrStore> store;
+};
+
+inline sycl::queue &Q(void *q) { return static_cast<BfQueue *>(q)->q; }
+inline std::shared_ptr<ErrStore> &Store(void *q) { return static_cast<BfQueue *>(q)->store; }
+inline sycl::event &E(void *e) { return static_cast<BfEvent *>(e)->e; }
+
+// 0 when nothing was collected; otherwise 1 (SYCL error) with every message joined in
+// g_last_error. Empties the store, so each error is reported once.
+inline int32_t drain_async_errors(ErrStore &st) {
+  std::lock_guard<std::mutex> lock(st.m);
+  if (st.errs.empty()) return 0;
   std::string all;
-  for (const std::string &m : g_async_errors) {
+  for (const std::string &m : st.errs) {
     if (!all.empty()) all += "; ";
     all += m;
   }
-  g_async_errors.clear();
+  st.errs.clear();
   g_last_error = "asynchronous error: " + all;
   return 1;
 }
-
-inline sycl::event &E(void *e) { return *static_cast<sycl::event *>(e); }
 
 // Build the dependency vector oneMKL takes from the C array of event handles.
 inline std::vector<sycl::event> deps_of(void *const *deps, int64_t n) {
