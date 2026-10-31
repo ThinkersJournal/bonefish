@@ -2,7 +2,8 @@
 //!
 //! - [`Queue`]: a SYCL queue on one device ([`DeviceKind`]).
 //! - [`UsmBuffer`]: typed unified shared memory owned by a queue.
-//! - [`blas::gemm`]: matrix multiply, `f32` and `f64`.
+//! - [`blas::gemm`]: matrix multiply, `f32` and `f64`; level 1 and `gemv` ([`blas::axpy`],
+//!   [`blas::dot`], [`blas::nrm2`], ...), blocking.
 //! - [`Dft`]: complex-to-complex FFTs, `f32` and `f64`, 1-D and N-D.
 //!
 //! The plain operations are blocking. For work that runs while the host continues, see
