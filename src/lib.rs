@@ -5,6 +5,8 @@
 //! - [`blas::gemm`]: matrix multiply, `f32` and `f64`; level 1 and `gemv` ([`blas::axpy`],
 //!   [`blas::dot`], [`blas::nrm2`], ...), blocking.
 //! - [`Dft`]: complex-to-complex FFTs, `f32` and `f64`, 1-D and N-D.
+//! - [`RealDft`]: real-to-complex and complex-to-real FFTs (half spectrum), `f32` and `f64`, 1-D and
+//!   N-D, out of place.
 //!
 //! The plain operations are blocking. For work that runs while the host continues, see
 //! [`Queue::scope`]: inside a scope, operations return an [`Event`] immediately and the scope
@@ -27,6 +29,7 @@ mod device;
 mod dft;
 mod error;
 mod queue;
+mod rdft;
 mod scalar;
 mod scope;
 mod usm;
@@ -36,6 +39,7 @@ pub use device::{DeviceInfo, DeviceType, find_by_pci_address, find_by_uuid};
 pub use dft::{Dft, Placement};
 pub use error::{Error, Result};
 pub use queue::{DeviceKind, Queue};
+pub use rdft::RealDft;
 pub use scalar::{Complex, Element, Scalar};
 pub use scope::{DeviceTime, Event, Operand, Plan, Read, Scope, Write};
 pub use usm::{UsmBuffer, UsmKind};

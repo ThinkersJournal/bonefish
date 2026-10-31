@@ -64,6 +64,7 @@ fn main() {
         "shim/blas1.cpp",
         "shim/blas1_async.cpp",
         "shim/devices.cpp",
+        "shim/dftr.cpp",
     ])
     .arg("-o")
     .arg(&lib);
