@@ -117,3 +117,34 @@ BF_API void *bf_queue_new_device(int64_t index) {
   });
   return out;
 }
+
+// A queue with options. `device_index` >= 0 picks that device of the enumeration above; -1 picks by
+// `kind` (0 default selector, 1 cpu, 2 gpu), like bf_queue_new. `flags` bit 0: enable profiling
+// (property::queue::enable_profiling), which `bf_event_profiling` needs. Always in-order and with
+// the async handler. Null on failure (see bf_last_error).
+BF_API void *bf_queue_new_ex(int32_t kind, int64_t device_index, int32_t flags) {
+  void *out = nullptr;
+  bf::guard([&] {
+    sycl::property_list props{sycl::property::queue::in_order()};
+    if (flags & 1) {
+      props = sycl::property_list{sycl::property::queue::in_order(),
+                                  sycl::property::queue::enable_profiling()};
+    }
+    auto store = std::make_shared<bf::ErrStore>();
+    if (device_index >= 0) {
+      auto all = devices();
+      if (static_cast<size_t>(device_index) >= all.size()) {
+        throw std::out_of_range("device index " + std::to_string(device_index) +
+                                " out of range (" + std::to_string(all.size()) + " devices)");
+      }
+      out = new bf::BfQueue{all[static_cast<size_t>(device_index)], store, props};
+      return;
+    }
+    switch (kind) {
+    case 1: out = new bf::BfQueue{sycl::cpu_selector_v, store, props}; break;
+    case 2: out = new bf::BfQueue{sycl::gpu_selector_v, store, props}; break;
+    default: out = new bf::BfQueue{sycl::default_selector_v, store, props}; break;
+    }
+  });
+  return out;
+}

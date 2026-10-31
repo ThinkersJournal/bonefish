@@ -196,6 +196,16 @@ mod ffi {
         /// does not offer it. `field`: 0 name, 1 vendor, 2 backend, 3 device type, 4 driver
         /// version, 5 PCI address, 6 UUID (32 hex digits), 7 Intel device id (decimal).
         pub fn bf_device_info(index: i64, field: i32, buf: *mut c_char, cap: i64) -> i64;
+        /// A queue with options: `device_index` >= 0 picks that device of the enumeration, -1
+        /// picks by `kind` (0 default, 1 CPU, 2 GPU). `flags` bit 0 enables profiling. Always
+        /// in-order, with the async handler. Null on failure.
+        pub fn bf_queue_new_ex(kind: i32, device_index: i64, flags: i32) -> *mut c_void;
+        /// Device start/end of the work behind an event, in nanoseconds on the device clock.
+        /// Waits for the event. Needs a queue made with profiling (otherwise status 1).
+        pub fn bf_event_profiling(e: *mut c_void, start_ns: *mut u64, end_ns: *mut u64) -> i32;
+        /// An empty kernel, chained like the other asynchronous calls: the launch floor. Null on
+        /// failure.
+        pub fn bf_noop_async(q: *mut c_void, deps: *const *mut c_void, n_deps: i64) -> *mut c_void;
         /// A queue (in-order, with the async handler) on device `index`. Null on failure.
         pub fn bf_queue_new_device(index: i64) -> *mut c_void;
         /// 1 if the queue is in-order (every queue from `bf_queue_new` is), 0 if not, -1 on failure.
@@ -812,6 +822,30 @@ mod stub {
         _cap: i64,
     ) -> i64 {
         -1
+    }
+
+    pub unsafe extern "C" fn bf_queue_new_ex(
+        _kind: i32,
+        _device_index: i64,
+        _flags: i32,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_event_profiling(
+        _e: *mut c_void,
+        _start_ns: *mut u64,
+        _end_ns: *mut u64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_noop_async(
+        _q: *mut c_void,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
     }
 
     pub unsafe extern "C" fn bf_queue_new_device(_index: i64) -> *mut c_void {

@@ -255,3 +255,35 @@ BF_API int64_t bf_mkl_lock_acquisitions() { return bf::mkl_lock_acquisitions().l
 
 // Message of the last failure on this thread; valid until the next failing call on it.
 BF_API const char *bf_last_error() { return bf::g_last_error.c_str(); }
+
+// Device-side start and end of the work behind an event, in nanoseconds on the device's clock
+// (SYCL command_start / command_end). Waits for the event first. Needs a queue created with
+// profiling (bf_queue_new_ex flag 1): otherwise SYCL throws and this returns status 1 with its
+// message. Returns 0 and fills `start_ns` / `end_ns` on success.
+BF_API int32_t bf_event_profiling(void *e, uint64_t *start_ns, uint64_t *end_ns) {
+  if (!e || !start_ns || !end_ns) {
+    bf::g_last_error = "null argument";
+    return 3;
+  }
+  return guard([&] {
+    bf::E(e).wait();
+    *start_ns = bf::E(e).get_profiling_info<sycl::info::event_profiling::command_start>();
+    *end_ns = bf::E(e).get_profiling_info<sycl::info::event_profiling::command_end>();
+  });
+}
+
+// An empty kernel, submitted like the other asynchronous calls (chained to the queue's previous
+// one, `deps` as in bf_sgemm_async). Its device time is the launch floor to subtract from, or
+// compare against, a real operation's. Null on failure.
+BF_API void *bf_noop_async(void *q, void *const *deps, int64_t n_deps) {
+  void *out = nullptr;
+  guard([&] {
+    auto d = bf::deps_chained(*bf::Store(q), deps, n_deps);
+    sycl::event ev = Q(q).submit([&](sycl::handler &h) {
+      h.depends_on(d);
+      h.single_task([] {});
+    });
+    out = bf::new_event(ev, bf::Store(q));
+  });
+  return out;
+}

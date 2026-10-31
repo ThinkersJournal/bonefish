@@ -21,6 +21,8 @@ pub enum DeviceKind {
 
 struct Inner {
     raw: NonNull<c_void>,
+    /// Created with profiling, so events from it can report device time.
+    profiling: bool,
 }
 
 // SAFETY: sharing and moving a queue between threads rests on two different things, and the
@@ -95,13 +97,36 @@ impl Queue {
             DeviceKind::Gpu => 2,
         };
         // SAFETY: plain call; a null return is handled by `from_raw`.
-        Queue::from_raw(unsafe { sys::bf_queue_new(code) })
+        Queue::from_raw(unsafe { sys::bf_queue_new(code) }, false)
+    }
+
+    /// Create a queue whose events can report device time ([`Event::device_time`](crate::Event::device_time)). Profiling can
+    /// only be chosen when the queue is made. It may add overhead to every submission; a
+    /// measurement that wants the least should compare against [`Scope::noop`](crate::Scope::noop) on the same queue.
+    ///
+    /// # Errors
+    ///
+    /// As [`Queue::new`].
+    pub fn new_profiling(kind: DeviceKind) -> Result<Queue> {
+        let code = match kind {
+            DeviceKind::Default => 0,
+            DeviceKind::Cpu => 1,
+            DeviceKind::Gpu => 2,
+        };
+        // SAFETY: plain call; a null return is handled by `from_raw`.
+        Queue::from_raw(unsafe { sys::bf_queue_new_ex(code, -1, 1) }, true)
+    }
+
+    /// Whether this queue was created with profiling.
+    #[must_use]
+    pub fn is_profiling(&self) -> bool {
+        self.0.profiling
     }
 
     /// Wrap a queue handle a `bf_queue_new*` call returned, or turn its failure into an error.
-    pub(crate) fn from_raw(raw: *mut c_void) -> Result<Queue> {
+    pub(crate) fn from_raw(raw: *mut c_void, profiling: bool) -> Result<Queue> {
         match NonNull::new(raw) {
-            Some(raw) => Ok(Queue(Arc::new(Inner { raw }))),
+            Some(raw) => Ok(Queue(Arc::new(Inner { raw, profiling }))),
             None if !sys::SYCL_AVAILABLE => Err(Error::Unavailable(last_message())),
             None => Err(Error::Sycl(last_message())),
         }

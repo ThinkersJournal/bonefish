@@ -249,7 +249,26 @@ impl Queue {
         let index = i64::try_from(info.index)
             .map_err(|_| Error::InvalidArgument("device index exceeds i64".into()))?;
         // SAFETY: plain call; a null return is handled by `from_raw`.
-        Queue::from_raw(unsafe { sys::bf_queue_new_device(index) })
+        Queue::from_raw(unsafe { sys::bf_queue_new_device(index) }, false)
+    }
+
+    /// As [`Queue::with_device`], with profiling enabled ([`Queue::new_profiling`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Queue::with_device`].
+    pub fn with_device_profiling(info: &DeviceInfo) -> Result<Queue> {
+        let now = read(info.index)?;
+        if &now != info {
+            return Err(Error::InvalidArgument(format!(
+                "device {} is now {:?}, not {:?}: the device list changed since it was listed",
+                info.index, now.name, info.name
+            )));
+        }
+        let index = i64::try_from(info.index)
+            .map_err(|_| Error::InvalidArgument("device index exceeds i64".into()))?;
+        // SAFETY: plain call; a null return is handled by `from_raw`.
+        Queue::from_raw(unsafe { sys::bf_queue_new_ex(0, index, 1) }, true)
     }
 
     /// A queue on the device at `index` of [`Queue::devices`].

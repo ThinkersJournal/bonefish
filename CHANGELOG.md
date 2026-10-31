@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.19
+
+- `bonefish`: device-time profiling and a launch floor (R5b, `docs/FUEL-INTEL-GPU-DESIGN.md`). `Queue::new_profiling(kind)` and `Queue::with_device_profiling(&info)` make a queue whose events can report device time (profiling can only be chosen at creation; `Queue::is_profiling()`); `Event::device_time()` waits for the operation and returns `DeviceTime { start_ns, end_ns }` (SYCL `command_start` / `command_end`, nanoseconds on the device's own clock, so only differences are meaningful); on a queue made without profiling it is `Error::InvalidArgument`, never a zero. `Scope::noop()` submits an empty kernel (chained like any other operation): its device time is the launch floor. `bonefish-sys`: `bf_queue_new_ex(kind, device_index, flags)`, `bf_event_profiling`, `bf_noop_async`.
+- Measured (Windows laptop, OpenCL CPU device, oneAPI 2026.1): empty kernel about 70 us, 1024^2 f32 `gemm` about 4 to 5 ms (median of 7). **Not verified:** that a GPU queue supports profiling, what its timestamps mean, and the profiling overhead.
+- Tests (`tests/profiling.rs`): a `gemm` reports `0 < start < end` and its result is right; the same call on a non-profiling queue is a named error, with the identical call on a profiling queue as the control; the empty kernel is at least 10 times faster than a real `gemm`; consecutive operations' device timestamps do not overlap. **That last test has no teeth against the shim's submission chain** (it passes 25 of 25 with the chain off, because an in-order queue orders native kernels); it only checks the timestamps are consistent, and its comment says so.
+- ROADMAP R8 gains a third unexplained stall: the new test binary hit a 120 s timeout once in 40 runs and was clean in 400 more (240 whole-binary, 160 single-test); the tests now have a 60 s watchdog that names the test.
+- Version number is a placeholder for the PM (stacks after 0.0.18).
+
 ## 0.0.18
 
 - `bonefish`: device enumeration and selection (R5a, `docs/FUEL-INTEL-GPU-DESIGN.md`). `Queue::devices()` lists every SYCL device with name, vendor, backend, type, driver version and, where the device offers them, PCI address, UUID and Intel device id (`None` otherwise, never a guess). A queue can be made on a chosen device with `Queue::with_device(&info)` (re-reads the list first and refuses a stale description), `with_device_index`, `with_pci_address` or `with_uuid` (the pure matchers `find_by_pci_address` / `find_by_uuid` refuse zero or several matches instead of taking the first). `bonefish-sys`: `bf_device_count`, `bf_device_info`, `bf_queue_new_device` (new `shim/devices.cpp`, no oneMKL, no lock).
