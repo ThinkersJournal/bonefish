@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.10
+
+- Docs only: `docs/ASYNC-DESIGN.md`, the design note for asynchronous work (scoped API over an unsafe layer, in-order queues, explicit dependency lists). No code change. Version number is a placeholder for the PM; it stacks after #10's 0.0.9.
+
 ## 0.0.8
 
 - Test: no tracked file may contain a NUL byte (`tests/no_nul_bytes.rs`; files from `git ls-files`; a tracked binary needs an `ALLOWED_BINARY` entry with a reason). Added after a raw NUL in a Rust byte string compiled, passed every check, and made git treat the file as binary. Negative controls: a planted NUL is found at its offset and the `\0` escape is not flagged.
