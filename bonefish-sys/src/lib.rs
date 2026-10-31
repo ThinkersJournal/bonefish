@@ -189,6 +189,59 @@ mod ffi {
             y: *mut f64,
             incy: i64,
         ) -> i32;
+        /// 1 if the queue is in-order (every queue from `bf_queue_new` is), 0 if not, -1 on failure.
+        pub fn bf_queue_is_in_order(q: *mut c_void) -> i32;
+        /// Waits for all work on the queue. Returns 1 (message in `bf_last_error`) if that surfaced
+        /// an asynchronous error.
+        pub fn bf_queue_wait(q: *mut c_void) -> i32;
+        /// Waits for one event (`wait_and_throw`); same status convention as `bf_queue_wait`.
+        pub fn bf_event_wait(e: *mut c_void) -> i32;
+        pub fn bf_event_free(e: *mut c_void);
+        /// Diagnostic: submits a host task that throws; the failure is asynchronous. Returns the
+        /// event, or null on failure.
+        pub fn bf_test_async_failure(q: *mut c_void) -> *mut c_void;
+        /// Non-blocking `gemm`: returns the event (null on failure). The device may still be
+        /// reading and writing the operands when this returns; the caller keeps them alive and
+        /// untouched until the event or the queue has been waited on. `deps` points at `n_deps`
+        /// event handles to wait for (null with 0 for none).
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_sgemm_async(
+            q: *mut c_void,
+            ta: i32,
+            tb: i32,
+            m: i64,
+            n: i64,
+            k: i64,
+            alpha: f32,
+            a: *const f32,
+            lda: i64,
+            b: *const f32,
+            ldb: i64,
+            beta: f32,
+            c: *mut f32,
+            ldc: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_dgemm_async(
+            q: *mut c_void,
+            ta: i32,
+            tb: i32,
+            m: i64,
+            n: i64,
+            k: i64,
+            alpha: f64,
+            a: *const f64,
+            lda: i64,
+            b: *const f64,
+            ldb: i64,
+            beta: f64,
+            c: *mut f64,
+            ldc: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
         /// Diagnostic: how many oneMKL calls have entered the shim's lock path. A test uses it to
         /// prove no oneMKL-calling function bypasses the lock. `-1` in a build without the shim.
         pub fn bf_mkl_lock_acquisitions() -> i64;
@@ -515,6 +568,66 @@ mod stub {
         _incy: i64,
     ) -> i32 {
         STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_queue_is_in_order(_q: *mut c_void) -> i32 {
+        -1
+    }
+
+    pub unsafe extern "C" fn bf_queue_wait(_q: *mut c_void) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_event_wait(_e: *mut c_void) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_event_free(_e: *mut c_void) {}
+
+    pub unsafe extern "C" fn bf_test_async_failure(_q: *mut c_void) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_sgemm_async(
+        _q: *mut c_void,
+        _ta: i32,
+        _tb: i32,
+        _m: i64,
+        _n: i64,
+        _k: i64,
+        _alpha: f32,
+        _a: *const f32,
+        _lda: i64,
+        _b: *const f32,
+        _ldb: i64,
+        _beta: f32,
+        _c: *mut f32,
+        _ldc: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_dgemm_async(
+        _q: *mut c_void,
+        _ta: i32,
+        _tb: i32,
+        _m: i64,
+        _n: i64,
+        _k: i64,
+        _alpha: f64,
+        _a: *const f64,
+        _lda: i64,
+        _b: *const f64,
+        _ldb: i64,
+        _beta: f64,
+        _c: *mut f64,
+        _ldc: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
     }
 
     pub unsafe extern "C" fn bf_mkl_lock_acquisitions() -> i64 {

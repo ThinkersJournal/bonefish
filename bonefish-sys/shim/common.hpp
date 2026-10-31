@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #if defined(_WIN32)
 #define BF_API extern "C" __declspec(dllexport)
@@ -39,6 +40,46 @@ template <class F> int32_t guard(F &&f) {
     g_last_error = "unknown C++ exception";
     return 3;
   }
+}
+
+// Asynchronous SYCL errors (raised after submission, for example by a kernel or a host task) reach
+// the queue's async_handler only when the host calls wait_and_throw/throw_asynchronous, and the
+// handler runs on that calling thread. So the handler appends to a per-thread list and the wait
+// functions (`bf_queue_wait`, `bf_event_wait`) drain it right after, turning it into a status code.
+inline thread_local std::vector<std::string> g_async_errors;
+
+inline void async_handler(sycl::exception_list errs) {
+  for (const std::exception_ptr &p : errs) {
+    try {
+      std::rethrow_exception(p);
+    } catch (const std::exception &e) {
+      g_async_errors.emplace_back(e.what());
+    } catch (...) {
+      g_async_errors.emplace_back("unknown asynchronous exception");
+    }
+  }
+}
+
+// 0 when nothing was raised; otherwise 1 (SYCL error) with every message joined in g_last_error.
+inline int32_t drain_async_errors() {
+  if (g_async_errors.empty()) return 0;
+  std::string all;
+  for (const std::string &m : g_async_errors) {
+    if (!all.empty()) all += "; ";
+    all += m;
+  }
+  g_async_errors.clear();
+  g_last_error = "asynchronous error: " + all;
+  return 1;
+}
+
+inline sycl::event &E(void *e) { return *static_cast<sycl::event *>(e); }
+
+// Build the dependency vector oneMKL takes from the C array of event handles.
+inline std::vector<sycl::event> deps_of(void *const *deps, int64_t n) {
+  std::vector<sycl::event> v;
+  for (int64_t i = 0; i < n; i++) v.push_back(E(deps[i]));
+  return v;
 }
 
 // One process-wide lock around every oneMKL entry point.

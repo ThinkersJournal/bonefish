@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.11
+
+- `bonefish-sys`: the non-blocking shim layer (R3c step 1, `docs/ASYNC-DESIGN.md`). Every queue is now in-order and has an `async_handler`; new `bf_sgemm_async`/`bf_dgemm_async` (return a `sycl::event*`, take an array of dependency events; only the submission is under the oneMKL lock), `bf_event_wait`, `bf_event_free`, `bf_queue_wait`, `bf_queue_is_in_order`, and a diagnostic `bf_test_async_failure`. Asynchronous errors come back as status 1 through both wait calls. No safe-API change yet (the scoped API is step 2), so no `bonefish` behaviour changes except that its queues are in-order.
+- Measured, not assumed: without the `async_handler` an asynchronous failure kills the process (the test fails by exit code 127, mutation-checked); with `in_order` removed the dependent-chain test still passes on the CPU device (15/15), so it has no teeth there and `is_in_order()` is what is pinned. GPU UNVERIFIED.
+- `bonefish-sys/tests/mkl_lock.rs` classifies and counts the new functions. ROADMAP: R3c added; R8 gains a second unexplained stall (first run of the new test binary, not reproduced in 40 runs); the tests now carry a 60 s watchdog.
+- Version number is a placeholder for the PM (stacks after 0.0.10).
+
 ## 0.0.10
 
 - Docs only: `docs/ASYNC-DESIGN.md`, the design note for asynchronous work (scoped API over an unsafe layer, in-order queues, explicit dependency lists). No code change. Version number is a placeholder for the PM; it stacks after #10's 0.0.9.
