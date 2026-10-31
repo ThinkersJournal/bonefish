@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.18
+
+- `bonefish`: device enumeration and selection (R5a, `docs/FUEL-INTEL-GPU-DESIGN.md`). `Queue::devices()` lists every SYCL device with name, vendor, backend, type, driver version and, where the device offers them, PCI address, UUID and Intel device id (`None` otherwise, never a guess). A queue can be made on a chosen device with `Queue::with_device(&info)` (re-reads the list first and refuses a stale description), `with_device_index`, `with_pci_address` or `with_uuid` (the pure matchers `find_by_pci_address` / `find_by_uuid` refuse zero or several matches instead of taking the first). `bonefish-sys`: `bf_device_count`, `bf_device_info`, `bf_queue_new_device` (new `shim/devices.cpp`, no oneMKL, no lock).
+- Measured on the only devices available (an OpenCL CPU device on the Windows laptop, and the Linux CI runner's): one device each; the name is space-padded; no PCI address; a UUID and an "Intel device id" are reported even on an AMD CPU, so that id is opaque. Documented in `src/device.rs`.
+- **Not verified:** selection of an index above 0 (one device only), and everything a GPU reports (PCI address, UUID, device id, driver version): no GPU has run any of this. Mutation: with the stale-description guard disabled the test fails ('called `Result::unwrap_err()` on an `Ok` value').
+- Version number is a placeholder for the PM (stacks after 0.0.17).
+
 ## 0.0.17
 
 - **Fix: a queue freed right after a wait could terminate the process.** `bf_queue_free` now retires the queue and destroys it only after a grace period (default 2 s, after a `wait_and_throw`), instead of at once. Found as an intermittent Linux CI abort (`async_shim` SIGABRT: SYCL's default async handler printed 'forced asynchronous failure' and called terminate; 5 of 180 looped runs on main). Reproduced on Windows with 4 threads each looping {new queue, failing host task, one wait, free}: destroying at once killed 25 of 25 processes, one thread 0 of 25. Cause: a wait can return before the runtime posts a task's error (R3c); if the queue is gone when the error arrives it goes to the default handler, which terminates. Compared under that probe: destroy at once 0 of 20 survive; wait then destroy at once 0 of 20 (so waiting alone does not help); never destroy 59 of 60; grace 50 ms 20 of 20; grace 2 s 40 of 40.

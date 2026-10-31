@@ -94,8 +94,12 @@ impl Queue {
             DeviceKind::Cpu => 1,
             DeviceKind::Gpu => 2,
         };
-        // SAFETY: plain call; a null return is handled below.
-        let raw = unsafe { sys::bf_queue_new(code) };
+        // SAFETY: plain call; a null return is handled by `from_raw`.
+        Queue::from_raw(unsafe { sys::bf_queue_new(code) })
+    }
+
+    /// Wrap a queue handle a `bf_queue_new*` call returned, or turn its failure into an error.
+    pub(crate) fn from_raw(raw: *mut c_void) -> Result<Queue> {
         match NonNull::new(raw) {
             Some(raw) => Ok(Queue(Arc::new(Inner { raw }))),
             None if !sys::SYCL_AVAILABLE => Err(Error::Unavailable(last_message())),
