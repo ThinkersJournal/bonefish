@@ -81,8 +81,8 @@ BF_API void bf_dft_free(void *h) {
 // Blocking transform on USM interleaved complex data. For an in-place descriptor pass out = null
 // (in is overwritten); for an out-of-place one pass both. dir: 0 forward, 1 backward.
 BF_API int32_t bf_dft_compute(void *h, int32_t dir, void *in, void *out) {
-  return bf::guard_mkl([&] {
-    auto *p = static_cast<Dft *>(h);
+  auto *p = static_cast<Dft *>(h);
+  return bf::guard_blocking(p->q, *p->store, [&] {
     bool fwd = dir == 0;
     (p->dbl ? run<DescD, double>(*p->d, fwd, in, out) : run<DescF, float>(*p->f, fwd, in, out))
         .wait();

@@ -743,45 +743,73 @@ fn asynchronous_calls_are_ordered_without_explicit_dependencies() {
     });
 }
 
-/// A blocking shim call that runs behind a failing asynchronous task waits for it but does not
-/// report its error: the error is collected by the next wait that throws (ROADMAP R3d). This pins
-/// the behaviour that is measured (`bf_memcpy`, the blocking calls share the same `wait()`), so a
-/// future fix, which should make the blocking call report it, has to update this test on purpose.
+/// A failing asynchronous task submitted just before a blocking call: the blocking call reports
+/// its error (status 1, the message in `bf_last_error`) and the queue's store is empty afterwards,
+/// so the error is reported once (ROADMAP R3d). Before the fix `bf_memcpy` waited for the task,
+/// returned 0 and left the error for the next `bf_queue_wait` (measured, Windows, oneAPI 2026.1,
+/// CPU/OpenCL, 3 of 3 runs). The other entry points end in the same wait; each is checked here.
+fn blocking_call_reports_a_failure_behind_it(name: &str, call: impl FnOnce(&Queue) -> i32) {
+    let q = Queue::new();
+    let e = unsafe { bf_test_async_failure(q.0) };
+    assert!(!e.is_null(), "{name}: {}", last_error());
+    unsafe { bf_event_free(e) };
+    let rc = call(&q);
+    assert_eq!(rc, 1, "{name}: expected the asynchronous error, got {rc}");
+    assert!(
+        last_error().contains("forced asynchronous failure"),
+        "{name}: {}",
+        last_error()
+    );
+    // Reported once: nothing is left for the next wait.
+    assert_eq!(unsafe { bf_queue_wait(q.0) }, 0, "{name}: {}", last_error());
+}
+
 #[test]
-fn a_blocking_call_behind_a_failing_task_does_not_report_its_error() {
-    watchdog("blocking_call_does_not_report", 60, || {
+fn a_blocking_call_behind_a_failing_task_reports_its_error() {
+    watchdog("blocking_call_reports_error", 120, || {
         let _g = serial();
-        let q = Queue::new();
-        let src = Mem::new(&q, &[1.0_f64; 4]);
-        let dst = Mem::new(&q, &[0.0_f64; 4]);
-        let e = unsafe { bf_test_async_failure(q.0) };
-        assert!(!e.is_null(), "{}", last_error());
-        unsafe { bf_event_free(e) };
-        // Blocking copy on the same (in-order) queue, behind the failing task.
-        let rc = unsafe { bf_memcpy(q.0, dst.p.cast(), src.p.cast(), 32) };
-        assert_eq!(
-            rc,
-            0,
-            "the blocking call is expected to succeed: {}",
-            last_error()
-        );
-        assert_eq!(
-            dst.get(4),
-            vec![1.0; 4],
-            "the copy itself must have happened"
-        );
-        // The error is still there for the next wait that collects it. It may be posted a moment
-        // late (see the late-delivery test), so poll briefly.
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
-        let mut got = 0;
-        while got != 1 && std::time::Instant::now() < deadline {
-            got = unsafe { bf_queue_wait(q.0) };
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
-        assert_eq!(
-            got, 1,
-            "the error should have been waiting in the queue's store"
-        );
-        assert!(last_error().contains("forced asynchronous failure"));
+        blocking_call_reports_a_failure_behind_it("bf_memcpy", |q| {
+            let src = Mem::new(q, &[1.0_f64; 4]);
+            let dst = Mem::new(q, &[0.0_f64; 4]);
+            let rc = unsafe { bf_memcpy(q.0, dst.p.cast(), src.p.cast(), 32) };
+            assert_eq!(
+                dst.get(4),
+                vec![1.0; 4],
+                "the copy itself must have happened"
+            );
+            rc
+        });
+        blocking_call_reports_a_failure_behind_it("bf_saxpy", |q| {
+            let x = Mem::new(q, &[1.0_f32; 4]);
+            let y = Mem::new(q, &[1.0_f32; 4]);
+            unsafe { bf_saxpy(q.0, 4, 2.0, x.p, 1, y.p, 1) }
+        });
+        blocking_call_reports_a_failure_behind_it("bf_sdot", |q| {
+            let x = Mem::new(q, &[1.0_f32; 4]);
+            let y = Mem::new(q, &[1.0_f32; 4]);
+            let r = Mem::new(q, &[0.0_f32; 1]);
+            unsafe { bf_sdot(q.0, 4, x.p, 1, y.p, 1, r.p) }
+        });
+        blocking_call_reports_a_failure_behind_it("bf_sgemm", |q| {
+            let a = Mem::new(q, &[1.0_f32; 4]);
+            let b = Mem::new(q, &[1.0_f32; 4]);
+            let c = Mem::new(q, &[0.0_f32; 4]);
+            unsafe { bf_sgemm(q.0, 0, 0, 2, 2, 2, 1.0, a.p, 2, b.p, 2, 0.0, c.p, 2) }
+        });
+        blocking_call_reports_a_failure_behind_it("bf_dgemm", |q| {
+            let a = Mem::new(q, &[1.0_f64; 4]);
+            let b = Mem::new(q, &[1.0_f64; 4]);
+            let c = Mem::new(q, &[0.0_f64; 4]);
+            unsafe { bf_dgemm(q.0, 0, 0, 2, 2, 2, 1.0, a.p, 2, b.p, 2, 0.0, c.p, 2) }
+        });
+        blocking_call_reports_a_failure_behind_it("bf_dft_compute", |q| {
+            let dims = [4_i64];
+            let h = unsafe { bf_dft_c2c_new(q.0, 1, 1, dims.as_ptr(), 1, 1.0, 1.0) };
+            assert!(!h.is_null(), "{}", last_error());
+            let data = Mem::new(q, &[1.0_f64, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+            let rc = unsafe { bf_dft_compute(h, 0, data.p.cast(), std::ptr::null_mut()) };
+            unsafe { bf_dft_free(h) };
+            rc
+        });
     });
 }
