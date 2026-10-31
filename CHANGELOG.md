@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.24
+
+- `bonefish`: a one-time, per-process **warm-up** (`src/warmup.rs`). The first `Queue` created in a process runs one tiny call of each BLAS routine family (level 1, `gemv`, `gemm`; `f32`, `f64`, `Complex<f32>`, `Complex<f64>`) serially; other threads creating a queue wait for it. Failures are ignored on purpose (a warm-up must never turn a working queue into an error). `BONEFISH_NO_WARMUP=1` skips it. Why: on Windows, different oneMKL routines running for the first time on parallel threads crashed about 1 run in 10 (ROADMAP R12). **This is a guard, not a fix: the mechanism is not shown and R12 stays open.** Cost: a few milliseconds on a CPU device; on a GPU queue it also pays first-call kernel setup up front (not measured).
+- Tests: `complex_blas` no longer warms up by itself, so it exercises the library guard: 0 crashes in 150 runs with the guard (Windows, oneAPI 2026.1, CPU device); with `BONEFISH_NO_WARMUP=1` (control, same binary, same session) 18 of 150 runs ended non-zero without a test failure (17 crashes plus one run that hung for 16 minutes at 0.4 s CPU and was killed by hand; a hang is the same unexplained family as ROADMAP R8).
+- Docs: `docs/R12-DELAY-LOAD-NOTE.md` (internal) records the delay-load failure; it is NOT in the Intel report (no standalone reproducer yet; PM ruling).
+- Not verified: any GPU, Linux locally, other oneMKL releases, DFT routines (not warmed up; no evidence they are affected).
+- Version number is a placeholder for the PM (stacks after 0.0.23).
+
 ## 0.0.23
 
 - `bonefish`: complex level 1 and `gemv` (R3). `blas::{axpy, scal, copy, swap, dot, dotc, nrm2, asum, iamax, gemv}` and the matching `Scope` methods now take `Complex<f32>` and `Complex<f64>` as well as `f32` and `f64`, through a new sealed trait `BlasElement` (its associated `Real` type is the result type of `nrm2` and `asum`, which are real even for complex input; the bound on those functions changed from `Scalar` to `BlasElement`, which every previously accepted type satisfies). `dot` is the **unconjugated** product (BLAS `dotu`); the new `dotc` conjugates the first vector (for real data the two are the same). `iamax` follows oneMKL's rule, the largest `|re| + |im|` (not the modulus), first index on ties; a test whose data separates the two rules checks it. `bonefish-sys`: 20 `bf_{c,z}{axpy,scal,copy,swap,dotu,dotc,nrm2,asum,iamax,gemv}_async` (`shim/complex.cpp`), all under the oneMKL lock and in the lock-counter test, each moving it by exactly one.
