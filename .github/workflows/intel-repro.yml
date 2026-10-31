@@ -1,0 +1,57 @@
+name: intel-repro
+
+# Runs the standalone reproducers in docs/intel-report on a GitHub-hosted Linux runner and prints the
+# tables the Intel report quotes. Manual (workflow_dispatch);
+# not a required check. The runner CPU is assigned at random, so the log names it.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro-linux:
+    name: intel-repro (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install oneAPI from Intel's apt repository
+        run: |
+          wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mkl-devel intel-oneapi-runtime-opencl
+      - name: Reproducers
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          bash docs/intel-report/run_all.sh 40
+
+  repro-windows:
+    name: intel-repro (windows, toolkit ${{ matrix.toolkit }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - toolkit: "2026.2.0.661"
+            url: https://registrationcenter-download.intel.com/akdlm/IRC_NAS/728c4418-1b40-47a9-ad51-31530fb27c94/intel-oneapi-toolkit-2026.2.0.661_offline.exe
+          - toolkit: "2026.1.0.191"
+            url: https://registrationcenter-download.intel.com/akdlm/IRC_NAS/4144bec3-82ce-4672-bd71-5c93a79cd5e7/intel-oneapi-toolkit-2026.1.0.191_offline.exe
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Intel's offline toolkit installer, the same URL and command line the oneapi-src/oneapi-ci
+      # repository uses for its Windows jobs (2026.2.0.661); 2026.1.0.191 is the URL on Intel's install guide. Components: the DPC++ compiler
+      # and the oneMKL development files.
+      - name: Install oneAPI
+        shell: cmd
+        run: |
+          curl.exe --output %TEMP%\webimage.exe --url ${{ matrix.url }} --retry 5 --retry-delay 5
+          start /b /wait %TEMP%\webimage.exe -s -x -f webimage_extracted --log extract.log
+          webimage_extracted\bootstrapper.exe -s --action install --eula=accept --components=intel.oneapi.win.cpp-dpcpp-common:intel.oneapi.win.mkl.devel -p=NEED_VS2022_INTEGRATION=0 --log-dir=.
+      - name: Reproducers
+        shell: cmd
+        run: |
+          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" --force
+          "C:\Program Files\Git\bin\bash.exe" docs/intel-report/run_all.sh 40

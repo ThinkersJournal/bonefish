@@ -1,6 +1,6 @@
 // Standalone reproducer, finding 3 of docs/INTEL-REPORT-DRAFT.md: oneMKL SYCL DFT (complex to
 // complex, CPU device) crashes with SIGFPE on some Intel Xeon CPUs with default instruction-set
-// dispatch. No Rust, no bonefish code; one thread; one configuration per process (a crash kills
+// dispatch. Plain C++ with SYCL and oneMKL only; one thread; one configuration per process (a crash kills
 // the process, so the caller loops over configurations).
 //
 // Build (oneAPI DPC++ compiler, MKL on the include/library path, e.g. after setvars):
