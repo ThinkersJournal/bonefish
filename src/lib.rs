@@ -34,7 +34,7 @@ pub use dft::{Dft, Placement};
 pub use error::{Error, Result};
 pub use queue::{DeviceKind, Queue};
 pub use scalar::{Complex, Element, Scalar};
-pub use scope::{Event, Operand, Read, Scope, Write};
+pub use scope::{Event, Operand, Plan, Read, Scope, Write};
 pub use usm::{UsmBuffer, UsmKind};
 
 /// Whether the SYCL shim was built into this binary.

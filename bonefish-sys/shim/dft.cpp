@@ -15,6 +15,9 @@ using DescD = dft::descriptor<dft::precision::DOUBLE, dft::domain::COMPLEX>;
 
 struct Dft {
   sycl::queue q;
+  // The creating queue's error store, so an event from `bf_dft_compute_async` can report that
+  // queue's asynchronous errors (the sycl::queue above is a plain copy and does not carry it).
+  std::shared_ptr<bf::ErrStore> store;
   bool dbl;
   std::unique_ptr<DescF> f;
   std::unique_ptr<DescD> d;
@@ -26,6 +29,16 @@ sycl::event run(Desc &desc, bool forward, void *in, void *out) {
   auto *o = static_cast<std::complex<T> *>(out);
   if (o == nullptr) return forward ? dft::compute_forward(desc, i) : dft::compute_backward(desc, i);
   return forward ? dft::compute_forward(desc, i, o) : dft::compute_backward(desc, i, o);
+}
+
+template <class Desc, class T>
+sycl::event run_with(Desc &desc, bool forward, void *in, void *out,
+                     const std::vector<sycl::event> &deps) {
+  auto *i = static_cast<std::complex<T> *>(in);
+  auto *o = static_cast<std::complex<T> *>(out);
+  if (o == nullptr)
+    return forward ? dft::compute_forward(desc, i, deps) : dft::compute_backward(desc, i, deps);
+  return forward ? dft::compute_forward(desc, i, o, deps) : dft::compute_backward(desc, i, o, deps);
 }
 
 template <class Desc, class T>
@@ -48,7 +61,7 @@ BF_API void *bf_dft_c2c_new(void *q, int32_t prec, int64_t ndim, const int64_t *
   Dft *h = nullptr;
   bf::guard_mkl([&] {
     if (ndim < 1 || lengths == nullptr) throw std::invalid_argument("dft: need at least one length");
-    auto p = std::make_unique<Dft>(Dft{bf::Q(q), prec == 1, nullptr, nullptr});
+    auto p = std::make_unique<Dft>(Dft{bf::Q(q), bf::Store(q), prec == 1, nullptr, nullptr});
     if (prec == 1) {
       p->d = make<DescD, double>(p->q, ndim, lengths, inplace != 0, fwd_scale, bwd_scale);
     } else {
@@ -74,4 +87,22 @@ BF_API int32_t bf_dft_compute(void *h, int32_t dir, void *in, void *out) {
     (p->dbl ? run<DescD, double>(*p->d, fwd, in, out) : run<DescF, float>(*p->f, fwd, in, out))
         .wait();
   });
+}
+
+// Non-blocking transform: as bf_dft_compute, but returns the event (null on failure, see
+// bf_last_error) and waits for `deps` (`n_deps` event handles, null with 0 for none). Only the
+// submission runs under the oneMKL lock. The caller keeps the descriptor, `in` and `out` alive,
+// and the data untouched by the host, until the event or the queue has been waited on.
+BF_API void *bf_dft_compute_async(void *h, int32_t dir, void *in, void *out, void *const *deps,
+                                  int64_t n_deps) {
+  void *ev = nullptr;
+  bf::guard_mkl([&] {
+    auto *p = static_cast<Dft *>(h);
+    bool fwd = dir == 0;
+    auto d = bf::deps_chained(*p->store, deps, n_deps);
+    sycl::event e = p->dbl ? run_with<DescD, double>(*p->d, fwd, in, out, d)
+                           : run_with<DescF, float>(*p->f, fwd, in, out, d);
+    ev = bf::new_event(e, p->store);
+  });
+  return ev;
 }

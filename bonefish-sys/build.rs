@@ -58,9 +58,14 @@ fn main() {
     if !windows {
         cmd.arg("-fPIC");
     }
-    cmd.args(["shim/shim.cpp", "shim/dft.cpp", "shim/blas1.cpp"])
-        .arg("-o")
-        .arg(&lib);
+    cmd.args([
+        "shim/shim.cpp",
+        "shim/dft.cpp",
+        "shim/blas1.cpp",
+        "shim/blas1_async.cpp",
+    ])
+    .arg("-o")
+    .arg(&lib);
     if env::var_os("MKLROOT").is_none()
         && let Some(root) = root
     {

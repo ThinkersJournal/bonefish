@@ -19,9 +19,10 @@ oneapi::mkl::transpose T(int32_t t) {
 } // namespace
 
 // kind: 0 default selector, 1 cpu, 2 gpu. Returns null on failure (see bf_last_error).
-// Every queue is in-order (work on one queue runs in submission order) and has an async_handler
-// that records into the queue's own error store; both are required by the non-blocking API
-// (docs/ASYNC-DESIGN.md sections 3.4 and 5).
+// Every queue is created with the in_order property and an async_handler that records into the
+// queue's own error store. In-order is NOT relied on for ordering: measured, oneMKL `dot` ignores
+// it, so asynchronous submissions are also chained explicitly (common.hpp, `deps_chained`).
+// See docs/ASYNC-DESIGN.md sections 3.4 and 5.
 BF_API void *bf_queue_new(int32_t kind) {
   void *out = nullptr;
   guard([&] {
@@ -138,10 +139,10 @@ void *gemm_async(void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t 
                  void *const *deps, int64_t n_deps) {
   void *out = nullptr;
   bf::guard_mkl([&] {
-    out = new bf::BfEvent{oneapi::mkl::blas::column_major::gemm(
-                              Q(q), T(ta), T(tb), m, n, k, alpha, a, lda, b, ldb, beta, c, ldc,
-                              bf::deps_of(deps, n_deps)),
-                          bf::Store(q)};
+    out = bf::new_event(oneapi::mkl::blas::column_major::gemm(
+                            Q(q), T(ta), T(tb), m, n, k, alpha, a, lda, b, ldb, beta, c, ldc,
+                            bf::deps_chained(*bf::Store(q), deps, n_deps)),
+                        bf::Store(q));
   });
   return out;
 }
@@ -159,6 +160,9 @@ BF_API void *bf_dgemm_async(void *q, int32_t ta, int32_t tb, int64_t m, int64_t 
                             int64_t n_deps) {
   return gemm_async(q, ta, tb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, deps, n_deps);
 }
+
+// Diagnostic for tests and A/B runs: turn the asynchronous submission chain on (1) or off (0).
+BF_API void bf_test_set_async_chain(int32_t on) { bf::async_chain_flag().store(on != 0); }
 
 // Diagnostic: how many oneMKL calls have entered the lock path (see common.hpp). Lets a test prove
 // that no oneMKL-calling function bypasses the lock.

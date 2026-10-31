@@ -36,10 +36,10 @@ queue.scope(|s| -> Result<()> {
 1. **Host cannot touch a bound buffer.** `read` keeps `&'scope UsmBuffer` alive and `write` keeps `&'scope mut`; the host's `as_slice`/`to_vec`/`copy_from_slice` need `&`/`&mut` on the same buffer and are rejected by the borrow checker until the scope ends. Pinned by `compile_fail,E0502` / `E0505` doctests (read or drop while bound).
 2. **Scope waits on every exit path.** A guard's `Drop` calls `queue.wait()`. It runs on normal return, on `?`, and on panic unwinding. Tested with `catch_unwind` (a kernel in flight, closure panics, the buffer is intact afterwards).
 3. **`mem::forget` cannot skip the wait**: there is nothing outside the closure to forget. Forgetting a `Read`/`Write` handle inside the closure only leaks the *borrow bookkeeping*, which the scope's end still closes.
-4. **Aliasing between in-flight operations.** Two operations naming the same `Write` handle are only race-free if the device never runs them concurrently. **That is why queues are created in-order** (`sycl::property::queue::in_order`): device work on one queue is serialised, so chained operations on a bound buffer cannot overlap. In-order is therefore a *soundness* requirement of this API, not only a convenience. Cross-queue ordering is the job of `gemm_after(&[&e])`.
+4. **Aliasing between in-flight operations.** Two operations naming the same `Write` handle are only race-free if the device never runs them concurrently. **The shim chains every asynchronous submission to the queue's previous one** (each call lists the queue's last event among its dependencies), so chained operations on a bound buffer cannot overlap. Queues are still created in-order (`sycl::property::queue::in_order`), but that is not what this rests on: **an in-order queue does not order oneMKL calls** (section 8). `gemm_after(&[&e])` states an extra dependency explicitly.
 5. **Queue outlives the work.** Handles hold the scope, which holds `&Queue`; `Queue` is dropped only after the scope returned.
 
-What this does **not** give: concurrent operations on one queue (in-order forbids it by design), or sharing a `Scope` between threads (`Scope` is `!Sync`; one scope per thread, matching the `Queue` thread-safety finding in `ROADMAP.md` R3b).
+What this does **not** give: concurrent operations on one queue (the chain forbids it by design), or sharing a `Scope` between threads (`Scope` is `!Sync`; one scope per thread, matching the `Queue` thread-safety finding in `ROADMAP.md` R3b).
 
 ## 4. Shim ABI changes (`bonefish-sys`)
 
@@ -64,17 +64,39 @@ A SYCL queue constructed without an `async_handler` reports *asynchronous* excep
 
 **Measured since (0.0.11, shim row; Windows, oneAPI 2026.1, CPU/OpenCL; GPU UNVERIFIED):** the worry was real. With no `async_handler` on the queue, an asynchronous failure (a host task that throws) made SYCL's default handler print the exception and the process exited (code 127). With the handler installed, the failure comes back from `bf_event_wait` and from `bf_queue_wait` as status 1 with its message, and is not reported a second time. **CORRECTION (0.0.12): the sentence that stood here, that the handler runs on the thread that calls `wait_and_throw` so a per-thread list is enough, was wrong and is retracted.** It held only for one thread. Measured with four threads on four queues, that design lost 138 of 300 errors on failing queues (343 of 600 in another shape) and once let a clean queue report another queue's error. The handler is the queue's but SYCL does not promise which thread runs it. The shim now keeps the errors **per queue**, in a store the handler captures; an event handle carries its queue's store; each wait drains the store of the queue or event it was called on; a queue's uncollected errors die with it. After that: 0 foreign errors in 9 runs, and no loss with one thread. What remains is a timing effect in the runtime, not ours: with four threads active about 2 to 5 in 100 failures were not yet posted when the first wait returned, and every missed one (66 of 66) was reported by a later wait on the same queue. So an asynchronous error can be reported by a later wait on its queue; `Ok` from a wait is not proof the work succeeded. Linux CI (oneAPI 2026.2) showed the same effect once, in the in-crate scope test run beside other tests, before the fix. Not measured: a *device-side* kernel failure (the test forces the error with a host task, which is the portable way to raise an asynchronous error).
 
-Also measured: with the `in_order` property removed, an out-of-order queue still passed the dependent-chain test 15 of 15 on this device. So section 3.4's "in-order is a soundness requirement" is a requirement of the *specification*, which the property test (`is_in_order()`) pins; the chain test cannot show it on the CPU device.
+Also measured: with the `in_order` property removed, an out-of-order queue still passed the `gemm` dependent-chain test 15 of 15 on this device, so that test cannot tell the two apart. **The conclusion once drawn from this, that the queue's order was something the specification could be trusted to supply, is retracted: see section 8, where the ordering is measured to fail.**
 
 ## 6. Other risks and non-goals
 
 - **`discard_events`**: Intel's oneMKL known-limitations page says queues created with the `discard_events` property are unsupported and "may lead to unexpected exceptions". I saw that through a search summary, not the page itself, so treat the wording as secondhand. The property exists in the headers (above). The shim never sets it, and a test asserts `is_in_order()` and, by construction, that only `in_order` was requested.
 - **Out-of-order queues** are not offered in v1 (see 3.4). A later row could add them with a stricter, per-buffer-token API.
 - **DFT plans** are class-based oneMKL objects, not shareable between threads (R3b); an async `compute` borrows the plan `&mut` for the scope.
-- **GPU**: every statement here was reasoned from the headers and, once implemented, is tested on the CPU/OpenCL device only. **GPU behaviour is UNVERIFIED**; an in-order queue's ordering guarantee on a GPU is the SYCL specification's, not something measured here.
+- **GPU**: every statement here was reasoned from the headers and, once implemented, is tested on the CPU/OpenCL device only. **GPU behaviour is UNVERIFIED**; the ordering of oneMKL calls on a GPU is not something measured here (section 8 found it missing on the CPU device).
 
 ## 7. Rows, in order
 
 1. Shim: in-order queue, async `gemm` (s, d), `bf_event_wait/free`, `bf_queue_wait`, the `async_handler`; tests in `bonefish-sys` including the forced asynchronous failure (or its honest absence).
 2. `bonefish`: `Scope`, `Read`/`Write`, `Event<'scope>`, async `gemm`; tests: result correctness after a chain, `compile_fail,E0502/E0505` hazards, `catch_unwind` wait-on-panic.
 3. Async `Dft::compute`, async level-1/`gemv`.
+
+## 8. An in-order queue does not order oneMKL calls (measured 2026-10-31, 0.0.13)
+
+**This replaces the claim that sections 3.4 and 6 once made, that in-order queues serialise the operations of a scope and so make chained operations on one buffer safe.** That claim rested on the SYCL specification and was never measured for oneMKL. It is false for the shipped build.
+
+Measured on Windows, oneAPI 2026.1, CPU/OpenCL device, on a queue created with the `in_order` property, two oneMKL calls submitted back to back with no explicit dependency, the second reading what the first wrote. Wrong = the second call saw the data from before the first (100 rounds per pair, fresh data each round, three runs):
+
+| first call | second call | wrong |
+|---|---|---|
+| `copy` | `dot` | 99, 100, 99 |
+| `axpy` | `dot` | 99, 100, 100 |
+| `gemm` | `dot` | 98, 99, 100 |
+| `scal` | `axpy` | 0 |
+| `axpy` | `asum`, `nrm2` | 0 |
+| `gemm` | `gemm` | 0 |
+| `dot` | `axpy` | 0 |
+
+With the earlier call's event listed as an explicit dependency, the wrong count was 0 of 200 for `copy`/`dot`, `gemm`/`dot` and 0 of 300 for `axpy`/`dot`. So `dot` (a call that writes a scalar through a USM pointer) does not honour the queue's order; the other pairs measured happen to be ordered. Which other calls behave like `dot`, on this build or any other, is not known: only these were measured, and `iamax` was not.
+
+**What the code does now.** Every asynchronous submission in the shim lists the queue's previous asynchronous event among its dependencies (`deps_chained`, `bonefish-sys/shim/common.hpp`), so the order is ours and does not depend on which calls the library happens to order. With the chain on, every pair above is right in every round (`asynchronous_calls_are_ordered_without_explicit_dependencies`, and `dot_straight_after_axpy_sees_the_axpy` through the safe API, which fails 5 of 5 runs with the chain off and passes 5 of 5 with it on). `BONEFISH_UNSAFE_NO_ASYNC_CHAIN=1` (or `bf_test_set_async_chain(0)`) turns the chain off, for exactly this A/B and for retesting a newer oneMKL; it is a diagnostic, not a feature.
+
+**What is still unknown.** Any GPU; Linux with oneAPI 2026.2 beyond the CI run of the same tests; other oneMKL releases; whether the same applies to the DFT call (the chain covers it, an unchained DFT was not measured). The finding is written up for Intel as finding 2 in `docs/INTEL-REPORT-DRAFT.md` (a draft, not sent).

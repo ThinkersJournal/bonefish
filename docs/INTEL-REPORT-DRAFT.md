@@ -1,5 +1,7 @@
 # Draft report for Intel: oneMKL SYCL BLAS crashes on concurrent first use from several host threads
 
+This draft holds two findings about the oneMKL SYCL interface, each with its own standalone reproducer: **finding 1** (below) concurrent first use of `gemm` from several host threads crashes; **finding 2** (the last section) on an in-order queue, `dot` does not wait for the oneMKL call submitted before it.
+
 Status: **DRAFT, not sent.** Bonefish lane, 2026-10-31. Sending anything outside the portfolio is the PM's and CireSnave's call; this file exists so that call can be made from one page. No secrets, no private paths. Everything below was measured; what was not measured is listed at the end.
 
 ## Summary
@@ -66,3 +68,47 @@ On the CI runner above, a Rust test that runs `gemm` from four threads on one sh
 ## Mitigation in use
 
 Bonefish takes one process-wide mutex around every oneMKL call (`bonefish-sys/shim/common.hpp`, `bf::MklLock`), and offers `BONEFISH_UNSAFE_NO_MKL_LOCK=1` to switch it off so that a newer oneMKL can be retested with the same binary.
+
+# Finding 2: on an in-order queue, oneMKL `dot` does not wait for the call submitted before it
+
+## Summary
+
+On a `sycl::queue` created with `sycl::property::queue::in_order`, two oneMKL calls submitted back to back with no explicit dependency are ordered by the SYCL specification: the second must not start before the first has finished. For most pairs measured that holds. For `oneapi::mkl::blas::column_major::dot` it did not: submitted right after `axpy`, `copy` or `gemm` on the same queue, `dot` read the data from before the earlier call in 98 to 100 of every 100 rounds. When the earlier call's event is passed to `dot` as an explicit dependency, the result was right in every round. Only one thread is involved; this is not the race of finding 1.
+
+## Environment
+
+| | |
+|---|---|
+| OS | Windows 11, 10.0.26300.9818 |
+| Compiler | Intel oneAPI DPC++/C++ 2026.1.0 (2026.1.0.20260617), target `x86_64-pc-windows-msvc` |
+| oneMKL | install directory `mkl/2026.1`; `mkl_version.h`: `__INTEL_MKL__ 2026`, `MINOR 0`, `UPDATE 1` |
+| Device | `sycl::cpu_selector_v`: AMD Ryzen 9 7940HX (OpenCL CPU runtime) |
+| GPU | **none involved** |
+
+## Reproducer
+
+`docs/intel-report/repro_order.cpp` (plain C++ plus SYCL and oneMKL, no other dependencies; build and run lines are in its header). Per round it allocates fresh shared USM, submits two calls back to back without waiting, waits once, and checks whether the second call saw the first call's result. Variant A has no dependency between the calls; variant B passes the first call's event to the second.
+
+## Results (100 rounds per cell, one thread, three runs of the program)
+
+Wrong = the second call used the data from before the first. Right answers: `axpy`->`dot` 70 (stale 10), `copy`->`dot` 30, `gemm`->`dot` 64.
+
+| first call | second call | wrong, no dependency (runs 1, 2, 3) | wrong, explicit dependency |
+|---|---|---|---|
+| `axpy` | `dot` | 98, 99, 100 | 0, 0, 0 |
+| `copy` | `dot` | 100, 100, 100 | 0, 0, 0 |
+| `gemm` | `dot` | 100, 100, 100 | 0, 0, 0 |
+| `scal` | `axpy` (control) | 0, 0, 0 | 0, 0, 0 |
+| `gemm` | `gemm` (control) | 0, 0, 0 | 0, 0, 0 |
+
+The controls show the harness does not simply report every pair as wrong. The same pattern was measured through a separate stack (a Rust program calling the same functions through a small C++ shim): `copy`->`dot` 99 to 100 wrong of 100, `axpy`->`dot` 99 to 100, `gemm`->`dot` 98 to 100 (three runs), and `scal`->`axpy`, `axpy`->`asum`, `axpy`->`nrm2`, `gemm`->`gemm`, `dot`->`axpy` all 0.
+
+## What this does and does not show
+
+- It shows a pair of calls that the SYCL in-order rule says are ordered, run out of order, with the explicit-dependency form correct. It does not show **why**: one reading is that `dot` (which writes a scalar through a USM pointer) is executed or enqueued outside the queue's order, but that is a guess from the pass/fail pattern, not something observed inside the library.
+- Only `axpy`, `copy`, `gemm`, `scal`, `asum`, `nrm2` and `dot` were exercised as the "first" or "second" call, and only some pairs. Other calls (`iamax`, level 2, the DFT interface) were not measured for this ordering effect.
+- Not measured: any GPU; the Linux build (oneAPI 2026.2) with this reproducer; any oneMKL other than 2026.1.
+
+## Mitigation in use
+
+Bonefish chains every asynchronous submission to the queue's previous one (each call lists the queue's last event as a dependency; `bonefish-sys/shim/common.hpp`, `deps_chained`), so it does not rely on the queue's order for oneMKL. `BONEFISH_UNSAFE_NO_ASYNC_CHAIN=1` turns the chain off so the same binary can show whether a newer oneMKL still needs it.

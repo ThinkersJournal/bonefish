@@ -117,6 +117,18 @@ impl<T: Scalar> Dft<T> {
         })
     }
 
+    pub(crate) fn raw(&self) -> *mut c_void {
+        self.handle.as_ptr()
+    }
+
+    pub(crate) fn queue(&self) -> &Queue {
+        &self.queue
+    }
+
+    pub(crate) fn placement(&self) -> Placement {
+        self.placement
+    }
+
     /// Number of complex elements the plan transforms.
     #[must_use]
     pub fn len(&self) -> usize {
