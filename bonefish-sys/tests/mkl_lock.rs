@@ -43,6 +43,8 @@ const MKL_FUNCS: &[&str] = &[
     "bf_dasum",
     "bf_diamax",
     "bf_dgemv",
+    "bf_sgemm_async",
+    "bf_dgemm_async",
     "bf_dft_c2c_new",
     "bf_dft_compute",
     "bf_dft_free",
@@ -53,6 +55,11 @@ const NOT_MKL_FUNCS: &[&str] = &[
     "bf_queue_new",
     "bf_queue_free",
     "bf_queue_device_name",
+    "bf_queue_is_in_order",
+    "bf_queue_wait",
+    "bf_event_wait",
+    "bf_event_free",
+    "bf_test_async_failure",
     "bf_malloc",
     "bf_free",
     "bf_memcpy",
@@ -222,6 +229,64 @@ mod counter {
         // drop at the end of the function it ran after `bf_queue_free(q)`: a use after free that
         // Windows tolerated and the Linux CI run turned into SIGSEGV.
         drop(data);
+
+        // Non-blocking gemm: the lock covers the submission. Wait before the buffers are freed.
+        {
+            let m32 = Usm::new(q, 16);
+            let m64 = Usm::new(q, 32);
+            let c32 = Usm::new(q, 16);
+            let c64 = Usm::new(q, 32);
+            let (d, e) = moved(|| unsafe {
+                bf_sgemm_async(
+                    q,
+                    0,
+                    0,
+                    2,
+                    2,
+                    2,
+                    1.0,
+                    m32.p.cast(),
+                    2,
+                    m32.p.cast(),
+                    2,
+                    0.0,
+                    c32.p.cast(),
+                    2,
+                    std::ptr::null(),
+                    0,
+                )
+            });
+            seen.push("bf_sgemm_async");
+            assert!(!e.is_null());
+            assert_eq!(d, 1, "bf_sgemm_async moved the counter by {d}, not 1");
+            assert_eq!(unsafe { bf_event_wait(e) }, 0);
+            unsafe { bf_event_free(e) };
+            let (d, e) = moved(|| unsafe {
+                bf_dgemm_async(
+                    q,
+                    0,
+                    0,
+                    2,
+                    2,
+                    2,
+                    1.0,
+                    m64.p.cast(),
+                    2,
+                    m64.p.cast(),
+                    2,
+                    0.0,
+                    c64.p.cast(),
+                    2,
+                    std::ptr::null(),
+                    0,
+                )
+            });
+            seen.push("bf_dgemm_async");
+            assert!(!e.is_null());
+            assert_eq!(d, 1, "bf_dgemm_async moved the counter by {d}, not 1");
+            assert_eq!(unsafe { bf_event_wait(e) }, 0);
+            unsafe { bf_event_free(e) };
+        }
 
         // The exercised list must be exactly the classified list (no function silently skipped).
         let exercised: BTreeSet<&str> = seen.iter().copied().collect();

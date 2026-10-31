@@ -56,9 +56,13 @@ void*   bf_queue_new_in_order(int32_t kind);   // or an `in_order` flag on bf_qu
 
 `oneapi::mkl::blas::column_major::gemm` already takes `const std::vector<sycl::event>& dependencies` and returns the event, so the shim only stops calling `.wait()` and builds the vector from `deps`.
 
-## 5. Asynchronous errors: the part I have not verified
+## 5. Asynchronous errors
 
 A SYCL queue constructed without an `async_handler` reports *asynchronous* exceptions (raised after submission) through the implementation's default behaviour, which can be to terminate the process. **UNVERIFIED on 2026.1**: I have not run an asynchronously failing kernel. Plan: install an `async_handler` on every queue the shim creates that stores the exceptions in a per-queue list; `bf_queue_wait` / `bf_event_wait` call `wait_and_throw`/drain that list and return the usual status codes (1 SYCL, 2 oneMKL). The first implementation row is a test that **forces** an asynchronous failure and shows the status arrives instead of an abort; if it cannot be forced on the CPU device, that is reported as unverified rather than assumed.
+
+**Measured since (0.0.11, shim row; Windows, oneAPI 2026.1, CPU/OpenCL; GPU UNVERIFIED):** the worry was real. With no `async_handler` on the queue, an asynchronous failure (a host task that throws) made SYCL's default handler print the exception and the process exited (code 127). With the handler installed, the failure comes back from `bf_event_wait` and from `bf_queue_wait` as status 1 with its message, and is not reported a second time. The handler runs on the thread that calls `wait_and_throw`, so the shim collects into a per-thread list and drains it right after the wait; a queue destroyed with uncollected errors drops them rather than blaming the next queue waited on from that thread. Not measured: a *device-side* kernel failure (the test forces the error with a host task, which is the portable way to raise an asynchronous error).
+
+Also measured: with the `in_order` property removed, an out-of-order queue still passed the dependent-chain test 15 of 15 on this device. So section 3.4's "in-order is a soundness requirement" is a requirement of the *specification*, which the property test (`is_in_order()`) pins; the chain test cannot show it on the CPU device.
 
 ## 6. Other risks and non-goals
 
