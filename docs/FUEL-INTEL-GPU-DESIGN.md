@@ -23,7 +23,7 @@ Checked in the tree at `22adfcf` (0.0.15) and in the oneAPI 2026.1 headers on th
 | Launch floor | none | an empty-kernel submission with the same profiling |
 | Delivery | `bonefish` is not on crates.io | Fuel takes crates.io deps only |
 
-**Row-major mapping (derived, to be tested, not yet run).** A row-major `X[M,K]` is the column-major `K x M` matrix X^T; row-major `W[K,N]` is column-major `N x K` (W^T); row-major `Y[M,N]` is column-major `N x M` (Y^T). So `Y = X W` is `Y^T = W^T X^T`: one column-major `gemm` with `m = N, n = M, k = K`, A = the W buffer (`lda = N`), B = the X buffer (`ldb = K`), C = the Y buffer (`ldc = N`), NoTrans/NoTrans. A safe `blas::gemm_row_major` would do that swap and be tested against a naive reference, including a non-square shape where a wrong swap gives a different answer.
+**Row-major mapping (derived, to be tested, not yet run).** A row-major `X[M,K]` is the column-major `K x M` matrix X^T; row-major `W[K,N]` is column-major `N x K` (W^T); row-major `Y[M,N]` is column-major `N x M` (Y^T). So `Y = X W` is `Y^T = W^T X^T`: one column-major `gemm` with `m = N, n = M, k = K`, A = the W buffer (`lda = N`), B = the X buffer (`ldb = K`), C = the Y buffer (`ldc = N`), NoTrans/NoTrans. **Fuel confirmed this is their call** (Fuel 1, 2026-10-31: `y^T = W^T x^T`, `gemm(m=N, n=M, k=K, A=W as col-major [N,K] ld=N, B=x as col-major [K,M] ld=K, C=y col-major [N,M] ld=N)`, no transposes). A safe `blas::gemm_row_major` would do that swap and be tested against a naive reference on **M=1 and M=128 with N != K** (Fuel's requested shapes), where a wrong swap gives a different answer.
 
 ## 3. The contract Bonefish offers Fuel
 
@@ -43,7 +43,7 @@ These are stated so the harness does not rely on anything not measured.
 | R5a | `Queue::devices()` listing name, backend, device type, and `pci_address` / `uuid` / `device_id` where the aspect exists (else `None`), plus `Queue::with_device(&info)`. | ~150 lines | on CPU: the CPU device is listed and selectable; a bogus index is an error; a device missing the aspect reports `None`, not a guess. GPU: UNVERIFIED |
 | R5b | Profiling: opt-in `profiling` queue property, `Event::device_time()` (start/end in ns, after the wait), and an empty-kernel submission for the launch floor. | ~150 lines | on CPU: a `gemm` event on a profiling queue has `end >= start > 0`; the same call on a non-profiling queue is an error, not a zero; the empty kernel is faster than a 1024^2 `gemm` |
 | R5c | f16 / bf16 `gemm` (`half::f16`, `half::bf16`, the crates.io release at the time) with the accumulate variant as an explicit argument, plus `blas::gemm_row_major`. | ~300 lines | row-major vs naive reference on non-square shapes (a swapped mapping must fail it); f16 vs f64 reference within a stated tolerance; **if the CPU device does not support half `gemm`, the test says so and is reported as not run, never skipped silently** |
-| R5d | `bonefish-bench` CLI (workspace member, built only with oneAPI): declared shapes, N/W up front, prints JSON rows (shape, dtype, accumulate variant, median/min/max device ms, GFLOP/s, GB/s for the matvec, device id, library versions, OS) and verifies sampled output entries against an f64 reference. | ~300 lines | an injected wrong shape fails verification; the launch floor is printed next to each row; no GPU needed to build or to run on the CPU device |
+| R5d | `bonefish-bench` CLI (workspace member, built only with oneAPI): declared shapes, N/W up front, prints JSON rows (shape, dtype, accumulate variant, **N timed runs and W warm-ups**, median/min/max device ms, GFLOP/s, GB/s for the matvec, device id, library versions including the **graphics driver version** SYCL reports, OS, **the exact command line**, and the verification result as **max error vs the f64 reference and the tolerance used**, not just pass/fail). Power and clock state is not read by the CLI; it is recorded by hand in Fuel's note (a field in the JSON reads `not recorded` unless given on the command line). | ~300 lines | an injected wrong shape fails verification; the launch floor is printed next to each row; no GPU needed to build or to run on the CPU device |
 | rig | run R5d on the A770 under each OS, paste into Fuel's dated note. | n/a | waits for the rig (CireSnave); every number carries the versions Fuel's ledger requires |
 
 Sampled verification (a few hundred random output entries, each a full f64 dot product) instead of a full reference `gemm` keeps the check cheap at M=1024, K=N=5120 and is **less** than a full comparison; the CLI prints how many entries it checked.
@@ -66,8 +66,8 @@ Sampled verification (a few hundred random output entries, each a full f64 dot p
 - That `half::f16` and `sycl::half` have identical bit layouts on every path (expected from the types, to be tested).
 - Anything about Fuel's Vulkan shaders (Fuel has not checked them either).
 
-## 7. Asks back to Fuel
+## 7. Asks back to Fuel, and their answers
 
-1. Confirm the CLI output fields (section 4, R5d) cover your ledger columns, or list what is missing.
-2. Confirm the row-major mapping in section 2 matches your matmul's (A, B) order, or give me the exact call to mirror.
-3. When row 125's selector lands, tell me the id format so `Queue::with_device` can take it directly.
+1. *CLI fields vs your ledger columns.* Answered 2026-10-31: covered except N and W per row, the exact command line, the Intel graphics driver version, power/clock state (record by hand if unreadable), and the verification result as max error and tolerance. Added to R5d above. The Fuel commit sha, the Vulkan driver version and Fuel-side numbers are Fuel's.
+2. *Row-major mapping.* Answered: matches Fuel's matmul; test M=1 and M=128 with N != K. Recorded in section 2.
+3. *Device id format.* Answered: row 125 is NOT STARTED and the format is undecided; planned inputs are PCI bus id (`domain:bus:device.function`) and device UUID (hex). Until then Bonefish sends what Level Zero reports per device (bus id, UUID, name), and `Queue::with_device` takes the bus id and UUID as strings; Fuel will say which format it chose when row 125 merges.
