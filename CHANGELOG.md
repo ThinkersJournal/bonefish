@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.10
+
+- Docs only: `docs/ASYNC-DESIGN.md`, the design note for asynchronous work (scoped API over an unsafe layer, in-order queues, explicit dependency lists). No code change. Version number is a placeholder for the PM; it stacks after #10's 0.0.9.
+
 ## 0.0.9
 
 - **Finding: oneMKL is not host-thread-safe in the shipped build, contrary to the oneAPI specification.** With oneAPI 2026.1 on Windows (CPU/OpenCL device), concurrent first use of `gemm` from four threads crashes inside `mkl_sycl_blas.6.dll` (exception `0xC06D007F` or an access violation): 28 of 40 runs of a standalone C++ program with no bonefish code, and 15 of 15 fresh-process runs of the Rust threading tests. On Linux CI (oneAPI 2026.2, OpenCL CPU, ubuntu runner) the same tests hung. SYCL allocation under threads alone was fine (25 of 25).
