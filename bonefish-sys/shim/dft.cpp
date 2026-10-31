@@ -61,6 +61,16 @@ BF_API void *bf_dft_c2c_new(void *q, int32_t prec, int64_t ndim, const int64_t *
   Dft *h = nullptr;
   bf::guard_mkl([&] {
     if (ndim < 1 || lengths == nullptr) throw std::invalid_argument("dft: need at least one length");
+    // Refuse a non-positive length here, never hand it to oneMKL: committing a descriptor of
+    // length 0 crashes the process with SIGFPE (exit 136) on Intel Xeon CPUs under default
+    // instruction-set dispatch (measured: Platinum 8370C and 8573C, oneAPI 2026.2, Linux; the same
+    // call throws FFT_INVALID_DESCRIPTOR on AMD EPYC, or with MKL_ENABLE_INSTRUCTIONS=AVX2).
+    // ROADMAP R9, docs/INTEL-REPORT-DRAFT.md finding 3.
+    for (int64_t i = 0; i < ndim; i++) {
+      if (lengths[i] < 1) {
+        throw std::invalid_argument("dft: every length must be at least 1 (a length of 0 or less is refused before oneMKL, which crashes on it on some Intel CPUs)");
+      }
+    }
     auto p = std::make_unique<Dft>(Dft{bf::Q(q), bf::Store(q), prec == 1, nullptr, nullptr});
     if (prec == 1) {
       p->d = make<DescD, double>(p->q, ndim, lengths, inplace != 0, fwd_scale, bwd_scale);
