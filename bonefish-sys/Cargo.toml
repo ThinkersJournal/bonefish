@@ -1,6 +1,6 @@
 [package]
 name = "bonefish-sys"
-version = "0.0.15"
+version = "0.0.16"
 edition = "2024"
 description = "Raw FFI to a small C shim over Intel oneMKL's SYCL (DPC++) interface, for Bonefish."
 license = "MIT OR Apache-2.0"

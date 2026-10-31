@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.16
+
+- Docs only: `docs/FUEL-INTEL-GPU-DESIGN.md` (R5), the Bonefish-side interface proposal for Fuel's ROADMAP row 127 (Intel Arc A770, Fuel's Vulkan path against oneMKL via SYCL). It records Fuel's answers as answers (not measurements), lists the gaps found in the tree and the oneAPI 2026.1 headers (no f16/bf16 `gemm`, no half `gemv` in oneMKL, column-major only, no device enumeration or PCI/UUID matching, no profiling, not on crates.io), states the ordering/error/thread-safety contract including the finding that an in-order queue does not order oneMKL `dot` (Windows, CPU device; Linux not measured), and proposes four small steps and a JSON CLI. No code. Every GPU statement is UNVERIFIED.
+- Version number is a placeholder for the PM (stacks after 0.0.15, which is on main).
+
 ## 0.0.15
 
 - `bonefish::blas`: blocking safe wrappers for level 1 and `gemv`, `f32` and `f64` (R3): `axpy`, `scal`, `copy`, `swap`, `dot`, `nrm2`, `asum`, `iamax` (zero-based, an error for `n = 0`) and `gemv`. Each is "submit on a `Queue::scope`, wait", so the bounds checks, the output-is-not-an-input refusal, the submission chain and the collection of asynchronous errors are the scope's, with one implementation of each. Scalar results (`dot`, `nrm2`, `asum`, `iamax`) are returned as values.
