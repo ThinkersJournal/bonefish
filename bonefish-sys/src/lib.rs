@@ -483,6 +483,34 @@ mod ffi {
         /// Diagnostic: `1` chains every asynchronous submission to the queue's previous one (the
         /// default), `0` turns that off. For A/B runs and for retesting a newer oneMKL.
         pub fn bf_test_set_async_chain(on: i32);
+        /// Committed real DFT descriptor (out-of-place only) over `ndim` `lengths`. `prec`: 0
+        /// single, 1 double. Null on failure; a length below 1 is refused before oneMKL.
+        pub fn bf_dftr_new(
+            q: *mut c_void,
+            prec: i32,
+            ndim: i64,
+            lengths: *const i64,
+            fwd_scale: f64,
+            bwd_scale: f64,
+        ) -> *mut c_void;
+        pub fn bf_dftr_free(h: *mut c_void);
+        /// Blocking real transform. `dir` 0: real `input` to half-spectrum complex `out`
+        /// (last dimension `n/2 + 1`); `dir` 1: the reverse.
+        pub fn bf_dftr_compute(
+            h: *mut c_void,
+            dir: i32,
+            input: *mut c_void,
+            out: *mut c_void,
+        ) -> i32;
+        /// Non-blocking `bf_dftr_compute`: returns the event, or null on failure.
+        pub fn bf_dftr_compute_async(
+            h: *mut c_void,
+            dir: i32,
+            input: *mut c_void,
+            out: *mut c_void,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
         /// Diagnostic: how many oneMKL calls have entered the shim's lock path. A test uses it to
         /// prove no oneMKL-calling function bypasses the lock. `-1` in a build without the shim.
         pub fn bf_mkl_lock_acquisitions() -> i64;
@@ -1166,6 +1194,39 @@ mod stub {
     }
 
     pub unsafe extern "C" fn bf_test_set_async_chain(_on: i32) {}
+
+    pub unsafe extern "C" fn bf_dftr_new(
+        _q: *mut c_void,
+        _prec: i32,
+        _ndim: i64,
+        _lengths: *const i64,
+        _fwd_scale: f64,
+        _bwd_scale: f64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_dftr_free(_h: *mut c_void) {}
+
+    pub unsafe extern "C" fn bf_dftr_compute(
+        _h: *mut c_void,
+        _dir: i32,
+        _input: *mut c_void,
+        _out: *mut c_void,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_dftr_compute_async(
+        _h: *mut c_void,
+        _dir: i32,
+        _input: *mut c_void,
+        _out: *mut c_void,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
 
     pub unsafe extern "C" fn bf_mkl_lock_acquisitions() -> i64 {
         -1

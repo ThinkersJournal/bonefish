@@ -66,6 +66,10 @@ const MKL_FUNCS: &[&str] = &[
     "bf_dft_compute_async",
     "bf_dft_c2c_new",
     "bf_dft_compute",
+    "bf_dftr_new",
+    "bf_dftr_free",
+    "bf_dftr_compute",
+    "bf_dftr_compute_async",
     "bf_dft_free",
 ];
 
@@ -411,6 +415,40 @@ mod counter {
             unsafe { bf_event_free(ev) };
             unsafe { bf_dft_free(h) };
             drop(data);
+        }
+
+        // Real DFT: create, blocking compute, async compute, free are four separate entries. Length
+        // 4 real -> 3 complex (4/2 + 1) in the half spectrum.
+        {
+            let dims = [4_i64];
+            let (d, h) = moved(|| unsafe { bf_dftr_new(q, 1, 1, dims.as_ptr(), 1.0, 1.0) });
+            seen.push("bf_dftr_new");
+            assert!(!h.is_null(), "bf_dftr_new failed");
+            assert_eq!(d, 1, "bf_dftr_new moved the counter by {d}, not 1");
+            let real = Usm::new(q, 4 * 8);
+            let half = Usm::new(q, 3 * 16);
+            let (d, rc) = moved(|| unsafe { bf_dftr_compute(h, 0, real.p, half.p) });
+            seen.push("bf_dftr_compute");
+            assert_eq!(
+                (rc, d),
+                (0, 1),
+                "bf_dftr_compute: status {rc}, counter moved {d}"
+            );
+            let (d, ev) = moved(|| unsafe {
+                bf_dftr_compute_async(h, 0, real.p, half.p, std::ptr::null(), 0)
+            });
+            seen.push("bf_dftr_compute_async");
+            assert!(!ev.is_null(), "bf_dftr_compute_async returned no event");
+            assert_eq!(
+                d, 1,
+                "bf_dftr_compute_async moved the counter by {d}, not 1"
+            );
+            assert_eq!(unsafe { bf_event_wait(ev) }, 0);
+            unsafe { bf_event_free(ev) };
+            let (d, ()) = moved(|| unsafe { bf_dftr_free(h) });
+            seen.push("bf_dftr_free");
+            assert_eq!(d, 1, "bf_dftr_free moved the counter by {d}, not 1");
+            drop((real, half));
         }
 
         // The exercised list must be exactly the classified list (no function silently skipped).

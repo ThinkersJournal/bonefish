@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -200,6 +201,23 @@ public:
 private:
   std::unique_lock<std::mutex> lock_;
 };
+
+// Refuse an unusable DFT shape before it reaches oneMKL. A non-positive length must never be handed
+// to oneMKL: committing a descriptor of length 0 crashes the process with SIGFPE (exit 136) on Intel
+// Xeon CPUs under default instruction-set dispatch (measured: Platinum 8370C and 8573C, oneAPI
+// 2026.2, Linux; the same call throws FFT_INVALID_DESCRIPTOR on AMD EPYC, or with
+// MKL_ENABLE_INSTRUCTIONS=AVX2). ROADMAP R9, docs/INTEL-REPORT-DRAFT.md finding 3. Used by every
+// shim function that builds a DFT descriptor (complex and real).
+inline void check_dft_lengths(int64_t ndim, const int64_t *lengths) {
+  if (ndim < 1 || lengths == nullptr) throw std::invalid_argument("dft: need at least one length");
+  for (int64_t i = 0; i < ndim; i++) {
+    if (lengths[i] < 1) {
+      throw std::invalid_argument(
+          "dft: every length must be at least 1 (a length of 0 or less is refused before oneMKL, "
+          "which crashes on it on some Intel CPUs)");
+    }
+  }
+}
 
 // `guard`, holding the oneMKL lock for the duration of the call.
 template <class F> int32_t guard_mkl(F &&f) {
