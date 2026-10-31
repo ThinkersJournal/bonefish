@@ -87,6 +87,10 @@ jobs:
           echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main"             | sudo tee /etc/apt/sources.list.d/oneAPI.list
           sudo apt-get update
           sudo apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mkl-devel intel-oneapi-runtime-opencl
+      # The runner CPU is assigned at random (AMD EPYC or Intel Xeon) and oneMKL's CPU dispatch differs
+      # between them; ROADMAP R9 was found by correlating red runs with the CPU named in this log.
+      - name: Runner CPU
+        run: lscpu | grep -E "Model name|^CPU\(s\)|Vendor"
       - name: Show SYCL devices
         run: source /opt/intel/oneapi/setvars.sh && sycl-ls
       - name: Test
