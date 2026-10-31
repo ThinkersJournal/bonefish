@@ -142,13 +142,14 @@ fn async_gemm_result_arrives_after_wait() {
 }
 
 /// A chain of dependent products on one in-order queue with NO explicit dependencies: each step
-/// reads what the previous wrote, so a wrong order shows as a wrong power of two. This is the
-/// property the scoped API's soundness rests on (design note 3.4).
+/// reads what the previous wrote, so a wrong order shows as a wrong power of two.
 ///
-/// **This test has no teeth on the CPU/OpenCL device.** With the `in_order` property removed from
-/// the shim, an out-of-order queue still passed it 15 of 15 runs, so it cannot tell the two apart
-/// here; `queues_are_in_order` (the property itself) is what actually pins the requirement. It
-/// stays as the end-to-end check that would fail on a device that really reorders. GPU UNVERIFIED.
+/// **This test has no teeth on the CPU/OpenCL device, and `gemm` is not the operation that
+/// matters.** With the `in_order` property removed from the shim, an out-of-order queue still
+/// passed it 15 of 15 runs; and `gemm` after `gemm` is one of the pairs oneMKL orders by itself.
+/// The ordering that the scoped API's soundness needs is pinned by
+/// `asynchronous_calls_are_ordered_without_explicit_dependencies` (which includes `dot`, the call
+/// that ignores an in-order queue) and `queues_are_in_order` pins only the property. GPU UNVERIFIED.
 #[test]
 fn in_order_queue_runs_a_dependent_chain_without_explicit_deps() {
     watchdog(
@@ -460,6 +461,284 @@ fn a_missed_asynchronous_error_is_reported_by_a_later_wait() {
             recovered,
             "of {} failures, {missed} were missed by the first wait and only {recovered} were reported later",
             4 * N
+        );
+    });
+}
+
+/// Typed shared USM for the level-1 / gemv / DFT tests below. Declared after its queue.
+struct Mem<'q, T: Copy> {
+    q: &'q Queue,
+    p: *mut T,
+}
+impl<'q, T: Copy> Mem<'q, T> {
+    fn new(q: &'q Queue, data: &[T]) -> Self {
+        let bytes = std::mem::size_of_val(data).max(1) as i64;
+        let p = unsafe { bf_malloc(q.0, 0, bytes) }.cast::<T>();
+        assert!(!p.is_null());
+        unsafe { std::ptr::copy_nonoverlapping(data.as_ptr(), p, data.len()) };
+        Mem { q, p }
+    }
+    fn get(&self, n: usize) -> Vec<T> {
+        (0..n).map(|i| unsafe { *self.p.add(i) }).collect()
+    }
+}
+impl<T: Copy> Drop for Mem<'_, T> {
+    fn drop(&mut self) {
+        unsafe { bf_free(self.q.0, self.p.cast()) }
+    }
+}
+
+const NO_DEPS: *const *mut c_void = std::ptr::null();
+
+fn free_all(events: &[*mut c_void]) {
+    for e in events {
+        unsafe { bf_event_free(*e) };
+    }
+}
+
+/// Every non-blocking level-1 function and gemv, submitted back to back on the in-order queue
+/// without waiting in between, then one queue wait, then the results are read through the host
+/// pointers. Hand-computed expectations (double precision).
+#[test]
+fn async_level_1_and_gemv_give_the_right_numbers() {
+    watchdog("async_level_1_and_gemv", 60, || {
+        let _g = serial();
+        let q = Queue::new();
+        let x = Mem::new(&q, &[1.0_f64, 2.0, 3.0, 4.0]);
+        let y = Mem::new(&q, &[1.0_f64, 1.0, 1.0, 1.0]);
+        let r_dot = Mem::new(&q, &[0.0_f64]);
+        let r_nrm = Mem::new(&q, &[0.0_f64]);
+        let r_asum = Mem::new(&q, &[0.0_f64]);
+        let r_iamax = Mem::new(&q, &[-1_i64]);
+        let mut ev = Vec::new();
+        unsafe {
+            // y = 2x + y = [3, 5, 7, 9]
+            ev.push(bf_daxpy_async(q.0, 4, 2.0, x.p, 1, y.p, 1, NO_DEPS, 0));
+            // dot(x, y) = 3 + 10 + 21 + 36 = 70, nrm2(x) = sqrt(30), asum(x) = 10, iamax(y) = 3
+            ev.push(bf_ddot_async(q.0, 4, x.p, 1, y.p, 1, r_dot.p, NO_DEPS, 0));
+            ev.push(bf_dnrm2_async(q.0, 4, x.p, 1, r_nrm.p, NO_DEPS, 0));
+            ev.push(bf_dasum_async(q.0, 4, x.p, 1, r_asum.p, NO_DEPS, 0));
+            ev.push(bf_diamax_async(q.0, 4, y.p, 1, r_iamax.p, NO_DEPS, 0));
+        }
+        assert!(ev.iter().all(|e| !e.is_null()), "{}", last_error());
+        assert_eq!(unsafe { bf_queue_wait(q.0) }, 0, "{}", last_error());
+        assert_eq!(y.get(4), vec![3.0, 5.0, 7.0, 9.0]);
+        assert_eq!(r_dot.get(1), vec![70.0]);
+        assert!((r_nrm.get(1)[0] - 30.0_f64.sqrt()).abs() < 1e-12);
+        assert_eq!(r_asum.get(1), vec![10.0]);
+        assert_eq!(r_iamax.get(1), vec![3]); // zero-based
+        free_all(&ev);
+
+        // scal, copy, swap, then gemv: x = 3x = [3, 6, 9, 12]; z = copy of x; swap(x, y).
+        let z = Mem::new(&q, &[0.0_f64; 4]);
+        let mut ev = Vec::new();
+        unsafe {
+            ev.push(bf_dscal_async(q.0, 4, 3.0, x.p, 1, NO_DEPS, 0));
+            ev.push(bf_dcopy_async(q.0, 4, x.p, 1, z.p, 1, NO_DEPS, 0));
+            ev.push(bf_dswap_async(q.0, 4, x.p, 1, y.p, 1, NO_DEPS, 0));
+        }
+        assert!(ev.iter().all(|e| !e.is_null()), "{}", last_error());
+        assert_eq!(unsafe { bf_queue_wait(q.0) }, 0, "{}", last_error());
+        assert_eq!(z.get(4), vec![3.0, 6.0, 9.0, 12.0]);
+        assert_eq!(x.get(4), vec![3.0, 5.0, 7.0, 9.0]); // was y
+        assert_eq!(y.get(4), vec![3.0, 6.0, 9.0, 12.0]); // was 3x
+        free_all(&ev);
+
+        // gemv, column-major A = [[1, 3], [2, 4]] (columns [1,2] and [3,4]), x = [1, 1]:
+        // N: y = A x = [4, 6]; T: y = A^T x = [3, 7].
+        let a = Mem::new(&q, &[1.0_f64, 2.0, 3.0, 4.0]);
+        let v = Mem::new(&q, &[1.0_f64, 1.0]);
+        let yn = Mem::new(&q, &[0.0_f64; 2]);
+        let yt = Mem::new(&q, &[0.0_f64; 2]);
+        let mut ev = Vec::new();
+        unsafe {
+            ev.push(bf_dgemv_async(
+                q.0, 0, 2, 2, 1.0, a.p, 2, v.p, 1, 0.0, yn.p, 1, NO_DEPS, 0,
+            ));
+            ev.push(bf_dgemv_async(
+                q.0, 1, 2, 2, 1.0, a.p, 2, v.p, 1, 0.0, yt.p, 1, NO_DEPS, 0,
+            ));
+        }
+        assert!(ev.iter().all(|e| !e.is_null()), "{}", last_error());
+        assert_eq!(unsafe { bf_queue_wait(q.0) }, 0, "{}", last_error());
+        assert_eq!(yn.get(2), vec![4.0, 6.0]);
+        assert_eq!(yt.get(2), vec![3.0, 7.0]);
+        free_all(&ev);
+    });
+}
+
+/// Single precision takes the same path; one operation each is enough to tell the macros apart.
+#[test]
+fn async_single_precision_level_1() {
+    watchdog("async_single_precision_level_1", 60, || {
+        let _g = serial();
+        let q = Queue::new();
+        let x = Mem::new(&q, &[1.0_f32, 2.0, 3.0]);
+        let y = Mem::new(&q, &[10.0_f32, 20.0, 30.0]);
+        let r = Mem::new(&q, &[0.0_f32]);
+        let e1 = unsafe { bf_saxpy_async(q.0, 3, 2.0, x.p, 1, y.p, 1, NO_DEPS, 0) };
+        // dot waits for the axpy through an explicit dependency array as well.
+        let deps = [e1];
+        let e2 = unsafe { bf_sdot_async(q.0, 3, x.p, 1, y.p, 1, r.p, deps.as_ptr(), 1) };
+        assert!(!e1.is_null() && !e2.is_null(), "{}", last_error());
+        assert_eq!(unsafe { bf_event_wait(e2) }, 0, "{}", last_error());
+        assert_eq!(y.get(3), vec![12.0, 24.0, 36.0]);
+        assert_eq!(r.get(1), vec![12.0 + 48.0 + 108.0]);
+        free_all(&[e1, e2]);
+    });
+}
+
+/// Asynchronous DFT: a delta transforms to all ones, in place, double precision.
+#[test]
+fn async_dft_compute_transforms_a_delta() {
+    watchdog("async_dft_compute", 60, || {
+        let _g = serial();
+        let q = Queue::new();
+        let dims = [4_i64];
+        let h = unsafe { bf_dft_c2c_new(q.0, 1, 1, dims.as_ptr(), 1, 1.0, 1.0) };
+        assert!(!h.is_null(), "{}", last_error());
+        // Interleaved (re, im): [1, 0, 0, 0] as complex.
+        let data = Mem::new(&q, &[1.0_f64, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let e =
+            unsafe { bf_dft_compute_async(h, 0, data.p.cast(), std::ptr::null_mut(), NO_DEPS, 0) };
+        assert!(!e.is_null(), "{}", last_error());
+        assert_eq!(unsafe { bf_event_wait(e) }, 0, "{}", last_error());
+        let out = data.get(8);
+        for k in 0..4 {
+            assert!(
+                (out[2 * k] - 1.0).abs() < 1e-12 && out[2 * k + 1].abs() < 1e-12,
+                "{out:?}"
+            );
+        }
+        free_all(&[e]);
+        unsafe { bf_dft_free(h) };
+    });
+}
+
+/// Back-to-back oneMKL calls whose second reads what the first wrote, with no explicit dependency.
+/// Measured (Windows, oneAPI 2026.1, CPU/OpenCL, in-order queue) with the shim's chain OFF: `dot`
+/// submitted right after `axpy`/`copy`/`gemm` read the old data in 299/300, 199/200 and 200/200
+/// rounds, and 0/200 when it listed the earlier event as a dependency; the other pairs below were
+/// ordered. So an in-order queue alone does not order oneMKL calls. With the chain ON (the
+/// default) every pair must be right. The OFF arm only reports (it is also the retest for a newer
+/// oneMKL: if it reports 0 wrong everywhere, the chain may no longer be needed).
+#[test]
+fn asynchronous_calls_are_ordered_without_explicit_dependencies() {
+    watchdog("asynchronous_calls_are_ordered", 180, || {
+        let _g = serial();
+        const N: usize = 100;
+        const PAIRS: [&str; 8] = [
+            "scal->axpy",
+            "copy->dot",
+            "axpy->dot",
+            "axpy->asum",
+            "axpy->nrm2",
+            "gemm->gemm",
+            "gemm->dot",
+            "dot->axpy",
+        ];
+        // One round of one pair on fresh data; true if the second call saw the first one's result.
+        let round = |q: &Queue, pair: &str| -> bool {
+            let x = Mem::new(q, &[1.0_f64, 2.0, 3.0, 4.0]);
+            let y = Mem::new(q, &[1.0_f64, 1.0, 1.0, 1.0]);
+            let r = Mem::new(q, &[0.0_f64]);
+            let mut m = [0.0_f64; 16];
+            for i in 0..4 {
+                m[i * 5] = 2.0;
+            }
+            let (m, ones) = (Mem::new(q, &m), Mem::new(q, &[1.0_f64; 16]));
+            let (z, w) = (Mem::new(q, &[0.0_f64; 16]), Mem::new(q, &[0.0_f64; 16]));
+            let mut ev: Vec<*mut c_void> = Vec::new();
+            let ok = unsafe {
+                match pair {
+                    "scal->axpy" => {
+                        ev.push(bf_dscal_async(q.0, 4, 2.0, x.p, 1, NO_DEPS, 0));
+                        ev.push(bf_daxpy_async(q.0, 4, 1.0, x.p, 1, y.p, 1, NO_DEPS, 0));
+                        assert_eq!(bf_queue_wait(q.0), 0, "{}", last_error());
+                        y.get(4) == vec![3.0, 5.0, 7.0, 9.0]
+                    }
+                    "copy->dot" => {
+                        ev.push(bf_dcopy_async(q.0, 4, x.p, 1, y.p, 1, NO_DEPS, 0));
+                        ev.push(bf_ddot_async(q.0, 4, y.p, 1, y.p, 1, r.p, NO_DEPS, 0));
+                        assert_eq!(bf_queue_wait(q.0), 0, "{}", last_error());
+                        r.get(1)[0] == 30.0
+                    }
+                    "axpy->dot" => {
+                        ev.push(bf_daxpy_async(q.0, 4, 2.0, x.p, 1, y.p, 1, NO_DEPS, 0));
+                        ev.push(bf_ddot_async(q.0, 4, x.p, 1, y.p, 1, r.p, NO_DEPS, 0));
+                        assert_eq!(bf_queue_wait(q.0), 0, "{}", last_error());
+                        r.get(1)[0] == 70.0
+                    }
+                    "axpy->asum" => {
+                        ev.push(bf_daxpy_async(q.0, 4, 1.0, x.p, 1, y.p, 1, NO_DEPS, 0));
+                        ev.push(bf_dasum_async(q.0, 4, y.p, 1, r.p, NO_DEPS, 0));
+                        assert_eq!(bf_queue_wait(q.0), 0, "{}", last_error());
+                        r.get(1)[0] == 14.0
+                    }
+                    "axpy->nrm2" => {
+                        ev.push(bf_daxpy_async(q.0, 4, 1.0, x.p, 1, y.p, 1, NO_DEPS, 0));
+                        ev.push(bf_dnrm2_async(q.0, 4, y.p, 1, r.p, NO_DEPS, 0));
+                        assert_eq!(bf_queue_wait(q.0), 0, "{}", last_error());
+                        (r.get(1)[0] - (4.0_f64 + 9.0 + 16.0 + 25.0).sqrt()).abs() < 1e-12
+                    }
+                    "gemm->gemm" => {
+                        ev.push(bf_dgemm_async(
+                            q.0, 0, 0, 4, 4, 4, 1.0, m.p, 4, ones.p, 4, 0.0, z.p, 4, NO_DEPS, 0,
+                        ));
+                        ev.push(bf_dgemm_async(
+                            q.0, 0, 0, 4, 4, 4, 1.0, m.p, 4, z.p, 4, 0.0, w.p, 4, NO_DEPS, 0,
+                        ));
+                        assert_eq!(bf_queue_wait(q.0), 0, "{}", last_error());
+                        w.get(16).iter().all(|e| *e == 4.0)
+                    }
+                    "gemm->dot" => {
+                        ev.push(bf_dgemm_async(
+                            q.0, 0, 0, 4, 4, 4, 1.0, m.p, 4, ones.p, 4, 0.0, z.p, 4, NO_DEPS, 0,
+                        ));
+                        ev.push(bf_ddot_async(q.0, 16, z.p, 1, z.p, 1, r.p, NO_DEPS, 0));
+                        assert_eq!(bf_queue_wait(q.0), 0, "{}", last_error());
+                        r.get(1)[0] == 64.0
+                    }
+                    _ => {
+                        ev.push(bf_ddot_async(q.0, 4, x.p, 1, x.p, 1, r.p, NO_DEPS, 0));
+                        ev.push(bf_daxpy_async(q.0, 1, 1.0, r.p, 1, y.p, 1, NO_DEPS, 0));
+                        assert_eq!(bf_queue_wait(q.0), 0, "{}", last_error());
+                        y.get(4)[0] == 31.0
+                    }
+                }
+            };
+            assert!(ev.iter().all(|e| !e.is_null()), "{}", last_error());
+            free_all(&ev);
+            ok
+        };
+        // Restore the default even if an assertion below unwinds.
+        struct ChainOn;
+        impl Drop for ChainOn {
+            fn drop(&mut self) {
+                unsafe { bf_test_set_async_chain(1) };
+            }
+        }
+        let _restore = ChainOn;
+        let q = Queue::new();
+        let mut off_report = Vec::new();
+        let mut on_wrong = Vec::new();
+        for pair in PAIRS {
+            unsafe { bf_test_set_async_chain(0) };
+            let off = (0..N).filter(|_| !round(&q, pair)).count();
+            unsafe { bf_test_set_async_chain(1) };
+            let on = (0..N).filter(|_| !round(&q, pair)).count();
+            off_report.push(format!("{pair}={off}"));
+            if on != 0 {
+                on_wrong.push(format!("{pair}={on}"));
+            }
+        }
+        eprintln!(
+            "ONEMKL-ORDER wrong of {N} with the chain OFF (informational): {}",
+            off_report.join(" ")
+        );
+        assert!(
+            on_wrong.is_empty(),
+            "with the chain ON, calls read stale data (of {N}): {on_wrong:?}"
         );
     });
 }

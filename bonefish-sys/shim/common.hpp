@@ -52,6 +52,10 @@ template <class F> int32_t guard(F &&f) {
 struct ErrStore {
   std::mutex m;
   std::vector<std::string> errs;
+  // The previous asynchronous submission on this queue (see `deps_chained`). Guarded by `lm`.
+  std::mutex lm;
+  sycl::event last;
+  bool has_last = false;
 };
 
 // The handle behind every `void *q` the C API hands out.
@@ -109,6 +113,43 @@ inline std::vector<sycl::event> deps_of(void *const *deps, int64_t n) {
   std::vector<sycl::event> v;
   for (int64_t i = 0; i < n; i++) v.push_back(E(deps[i]));
   return v;
+}
+
+// Diagnostic switch, not a feature: BONEFISH_UNSAFE_NO_ASYNC_CHAIN=1 (or `bf_test_set_async_chain`)
+// turns the submission chain below off, so the same binary can show whether a given oneMKL still
+// needs it. Default on.
+inline std::atomic<bool> &async_chain_flag() {
+  static std::atomic<bool> on{[] {
+    const char *v = std::getenv("BONEFISH_UNSAFE_NO_ASYNC_CHAIN");
+    return !(v && v[0] == '1' && v[1] == '\0');
+  }()};
+  return on;
+}
+
+// Every asynchronous submission on a queue depends on the queue's previous asynchronous
+// submission, in addition to the caller's `deps`. Measured (Windows, oneAPI 2026.1, CPU/OpenCL,
+// in-order queue): oneMKL `dot` submitted right after `axpy`, `copy` or `gemm` read the OLD data in
+// 299 of 300, 199 of 200 and 200 of 200 rounds, and 0 of 300 when it listed the earlier event as a
+// dependency. So an in-order queue does not, by itself, order oneMKL calls, and the safe layer's
+// soundness (no two operations on one buffer overlap on the device) cannot rest on it. Chaining
+// the events makes the order ours instead of the library's. Callers hold the oneMKL lock.
+inline std::vector<sycl::event> deps_chained(ErrStore &st, void *const *deps, int64_t n) {
+  std::vector<sycl::event> v = deps_of(deps, n);
+  if (async_chain_flag().load()) {
+    std::lock_guard<std::mutex> lock(st.lm);
+    if (st.has_last) v.push_back(st.last);
+  }
+  return v;
+}
+
+// Record `e` as the queue's latest asynchronous submission and wrap it as a C handle.
+inline void *new_event(sycl::event e, const std::shared_ptr<ErrStore> &st) {
+  {
+    std::lock_guard<std::mutex> lock(st->lm);
+    st->last = e;
+    st->has_last = true;
+  }
+  return new BfEvent{e, st};
 }
 
 // One process-wide lock around every oneMKL entry point.

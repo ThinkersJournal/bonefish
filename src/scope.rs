@@ -23,12 +23,20 @@
 //! 2. **The scope waits on every way out.** A guard waits for the queue on normal return, on
 //!    `?` and on panic unwinding. The closure runs inside [`Queue::scope`], so nothing outside
 //!    can forget the guard, and `'scope` is invariant so no handle can be smuggled out.
-//! 3. **Queues are in-order**, so two operations that name the same [`Write`] cannot run at the
-//!    same time on the device. (The CPU/OpenCL device also happens to run an out-of-order queue
-//!    in order, so no test here can tell; this rests on the SYCL specification and on the
-//!    `in_order` property the shim sets. GPU UNVERIFIED.)
+//! 3. **Asynchronous submissions on a queue are chained**, so two operations that name the same
+//!    [`Write`] cannot run at the same time on the device: the shim makes every asynchronous call
+//!    depend on the queue's previous one. This is deliberately NOT left to the queue being
+//!    in-order. Measured (Windows, oneAPI 2026.1, CPU/OpenCL, in-order queue): a oneMKL `dot`
+//!    submitted right after an `axpy`, `copy` or `gemm` read the old data in 99 to 100 of 100
+//!    rounds; with the chain it never did. The chain can be switched off for diagnosis with
+//!    `BONEFISH_UNSAFE_NO_ASYNC_CHAIN=1`; do not do that in a program that matters. Other
+//!    oneMKL releases and any GPU are UNVERIFIED (`ROADMAP.md` R3c).
 //! 4. **One operation never aliases its own output**: an input that is the same buffer as the
 //!    output is an [`Error::InvalidArgument`], because BLAS forbids it.
+//!
+//! Operations: [`Scope::gemm`], level 1 ([`Scope::axpy`], [`Scope::scal`], [`Scope::copy`],
+//! [`Scope::swap`], [`Scope::dot`], [`Scope::nrm2`], [`Scope::asum`], [`Scope::iamax`]),
+//! [`Scope::gemv`] and DFT ([`Scope::plan`], [`Scope::dft_forward`] and friends).
 //!
 //! A [`Scope`] is `!Sync`: one scope, one thread. Several threads each use their own scope (and
 //! the shim's oneMKL lock serialises the submissions, see `ROADMAP.md` R3b).
@@ -41,9 +49,10 @@ use std::ptr::NonNull;
 use bonefish_sys as sys;
 
 use crate::blas::{Transpose, check_matrix, dim};
+use crate::dft::{Dft, Placement};
 use crate::error::{Error, Result, check, last_message};
 use crate::queue::Queue;
-use crate::scalar::{Element, Scalar};
+use crate::scalar::{Complex, Element, Scalar};
 use crate::usm::UsmBuffer;
 
 mod sealed {
@@ -57,8 +66,8 @@ pub struct Read<'scope, T: Element> {
 }
 
 /// A buffer bound for writing inside a scope. Holds an exclusive borrow of the buffer until the
-/// scope ends. Operations take it by `&`, so several operations can name it; the in-order queue
-/// keeps them from overlapping.
+/// scope ends. Operations take it by `&`, so several operations can name it; the shim's chain of
+/// asynchronous submissions keeps them from overlapping.
 pub struct Write<'scope, T: Element> {
     buf: &'scope mut UsmBuffer<T>,
 }
@@ -361,8 +370,9 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         )
     }
 
-    /// As [`Scope::gemm`], but the work also waits for every event in `after`. On an in-order
-    /// queue earlier work is already ordered; this is for stating a dependency explicitly.
+    /// As [`Scope::gemm`], but the work also waits for every event in `after`. Earlier work in
+    /// the scope is already ordered before this (the shim chains submissions); this is for stating
+    /// a dependency explicitly.
     ///
     /// # Errors
     ///
@@ -408,9 +418,9 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         // SAFETY: every pointer is USM from this scope's queue (checked when bound) and the
         // extents above fit inside the buffers. The buffers stay borrowed until the scope ends,
         // and the scope waits for the queue before that, so the device is finished with them
-        // first. `c` is distinct from `a` and `b` (checked above), and the in-order queue keeps
-        // this operation from overlapping earlier ones that name the same buffers. `deps` are
-        // live events of this scope.
+        // first. `c` is distinct from `a` and `b` (checked above), and the shim chains this
+        // submission to the queue's previous one, so it cannot overlap earlier ones that name the
+        // same buffers. `deps` are live events of this scope.
         let raw = unsafe {
             T::gemm_async(
                 self.queue.raw(),
@@ -435,6 +445,11 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
                 deps.len() as i64,
             )
         };
+        self.event(raw)
+    }
+
+    /// Wrap the event handle a `*_async` call returned, or turn its failure into an error.
+    fn event(&'scope self, raw: *mut c_void) -> Result<Event<'scope>> {
         match NonNull::new(raw) {
             Some(raw) => Ok(Event {
                 raw,
@@ -446,6 +461,551 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
                 last_message()
             ))),
         }
+    }
+}
+
+/// `n` elements at stride `inc` must fit in a buffer of `len` elements.
+fn check_vec(name: &str, len: usize, n: usize, inc: usize) -> Result<()> {
+    if inc == 0 {
+        return Err(Error::InvalidArgument(format!(
+            "{name}: the increment must be at least 1"
+        )));
+    }
+    if n == 0 {
+        return Ok(());
+    }
+    let needed = (n - 1)
+        .checked_mul(inc)
+        .and_then(|v| v.checked_add(1))
+        .ok_or_else(|| Error::InvalidArgument(format!("{name}: extent overflows")))?;
+    if needed > len {
+        return Err(Error::InvalidArgument(format!(
+            "{name}: {n} elements at stride {inc} need {needed} elements, buffer has {len}"
+        )));
+    }
+    Ok(())
+}
+
+/// A scalar result is written to element 0 of its buffer.
+fn check_result(name: &str, len: usize) -> Result<()> {
+    if len == 0 {
+        return Err(Error::InvalidArgument(format!(
+            "{name}: the buffer is empty"
+        )));
+    }
+    Ok(())
+}
+
+/// The two buffers must be different allocations: an operation never reads and writes the same
+/// memory, and BLAS forbids it.
+fn distinct<A: Element, B: Element>(
+    a: &UsmBuffer<A>,
+    a_name: &str,
+    b: &UsmBuffer<B>,
+    b_name: &str,
+) -> Result<()> {
+    if std::ptr::eq(a.raw().cast::<c_void>(), b.raw().cast::<c_void>()) {
+        return Err(Error::InvalidArgument(format!(
+            "{b_name} is the same buffer as {a_name}, which this operation also writes or reads"
+        )));
+    }
+    Ok(())
+}
+
+/// A DFT plan bound for use inside a scope. Holds a shared borrow of the plan until the scope
+/// ends, so the plan cannot be dropped while a transform that uses it is still running.
+pub struct Plan<'scope, T: Scalar> {
+    dft: &'scope Dft<T>,
+}
+
+const NO_DEPS: *const *mut c_void = std::ptr::null();
+
+/// Level 1, `gemv` and DFT. Each call returns once the work is submitted. Operations on one queue
+/// run in submission order because the shim chains each asynchronous submission to the queue's
+/// previous one; an in-order queue alone does not order oneMKL calls (`ROADMAP.md` R3c). Vector
+/// increments must be at least 1.
+impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
+    /// `y = alpha * x + y`.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidArgument`] if an extent does not fit its buffer or `y` is the same buffer as
+    /// `x`; submission errors as for [`Scope::gemm`].
+    pub fn axpy<T: Scalar>(
+        &'scope self,
+        n: usize,
+        alpha: T,
+        x: &impl Operand<T>,
+        incx: usize,
+        y: &Write<'scope, T>,
+        incy: usize,
+    ) -> Result<Event<'scope>> {
+        let (x, y) = (x.buffer(), &*y.buf);
+        check_vec("x", x.len(), n, incx)?;
+        check_vec("y", y.len(), n, incy)?;
+        distinct(y, "y", x, "x")?;
+        // SAFETY: extents checked; buffers are USM of this scope's queue, borrowed until the scope
+        // ends, which waits first; `y` is distinct from `x`.
+        let raw = unsafe {
+            T::axpy_async(
+                self.queue.raw(),
+                dim("n", n)?,
+                alpha,
+                x.raw(),
+                dim("incx", incx)?,
+                y.raw(),
+                dim("incy", incy)?,
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// `x = alpha * x`.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidArgument`] if the extent does not fit; submission errors as for
+    /// [`Scope::gemm`].
+    pub fn scal<T: Scalar>(
+        &'scope self,
+        n: usize,
+        alpha: T,
+        x: &Write<'scope, T>,
+        incx: usize,
+    ) -> Result<Event<'scope>> {
+        let x = &*x.buf;
+        check_vec("x", x.len(), n, incx)?;
+        // SAFETY: as `axpy`.
+        let raw = unsafe {
+            T::scal_async(
+                self.queue.raw(),
+                dim("n", n)?,
+                alpha,
+                x.raw(),
+                dim("incx", incx)?,
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// `y = x`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Scope::axpy`].
+    pub fn copy<T: Scalar>(
+        &'scope self,
+        n: usize,
+        x: &impl Operand<T>,
+        incx: usize,
+        y: &Write<'scope, T>,
+        incy: usize,
+    ) -> Result<Event<'scope>> {
+        let (x, y) = (x.buffer(), &*y.buf);
+        check_vec("x", x.len(), n, incx)?;
+        check_vec("y", y.len(), n, incy)?;
+        distinct(y, "y", x, "x")?;
+        // SAFETY: as `axpy`.
+        let raw = unsafe {
+            T::copy_async(
+                self.queue.raw(),
+                dim("n", n)?,
+                x.raw(),
+                dim("incx", incx)?,
+                y.raw(),
+                dim("incy", incy)?,
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// Exchange `x` and `y`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Scope::axpy`].
+    pub fn swap<T: Scalar>(
+        &'scope self,
+        n: usize,
+        x: &Write<'scope, T>,
+        incx: usize,
+        y: &Write<'scope, T>,
+        incy: usize,
+    ) -> Result<Event<'scope>> {
+        let (x, y) = (&*x.buf, &*y.buf);
+        check_vec("x", x.len(), n, incx)?;
+        check_vec("y", y.len(), n, incy)?;
+        distinct(x, "x", y, "y")?;
+        // SAFETY: as `axpy`.
+        let raw = unsafe {
+            T::swap_async(
+                self.queue.raw(),
+                dim("n", n)?,
+                x.raw(),
+                dim("incx", incx)?,
+                y.raw(),
+                dim("incy", incy)?,
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// `result[0] = x . y`. The result is written when the work runs, so read it after the scope
+    /// (or after waiting for the returned event).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidArgument`] if an extent does not fit or `result` is the same buffer as `x`
+    /// or `y`; submission errors as for [`Scope::gemm`].
+    pub fn dot<T: Scalar>(
+        &'scope self,
+        n: usize,
+        x: &impl Operand<T>,
+        incx: usize,
+        y: &impl Operand<T>,
+        incy: usize,
+        result: &Write<'scope, T>,
+    ) -> Result<Event<'scope>> {
+        let (x, y, r) = (x.buffer(), y.buffer(), &*result.buf);
+        check_vec("x", x.len(), n, incx)?;
+        check_vec("y", y.len(), n, incy)?;
+        check_result("result", r.len())?;
+        distinct(r, "result", x, "x")?;
+        distinct(r, "result", y, "y")?;
+        // SAFETY: as `axpy`; `result` has at least one element and is distinct from the inputs.
+        let raw = unsafe {
+            T::dot_async(
+                self.queue.raw(),
+                dim("n", n)?,
+                x.raw(),
+                dim("incx", incx)?,
+                y.raw(),
+                dim("incy", incy)?,
+                r.raw(),
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// `result[0] = ||x||_2`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Scope::dot`].
+    pub fn nrm2<T: Scalar>(
+        &'scope self,
+        n: usize,
+        x: &impl Operand<T>,
+        incx: usize,
+        result: &Write<'scope, T>,
+    ) -> Result<Event<'scope>> {
+        let (x, r) = (x.buffer(), &*result.buf);
+        check_vec("x", x.len(), n, incx)?;
+        check_result("result", r.len())?;
+        distinct(r, "result", x, "x")?;
+        // SAFETY: as `dot`.
+        let raw = unsafe {
+            T::nrm2_async(
+                self.queue.raw(),
+                dim("n", n)?,
+                x.raw(),
+                dim("incx", incx)?,
+                r.raw(),
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// `result[0] = sum |x_i|`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Scope::dot`].
+    pub fn asum<T: Scalar>(
+        &'scope self,
+        n: usize,
+        x: &impl Operand<T>,
+        incx: usize,
+        result: &Write<'scope, T>,
+    ) -> Result<Event<'scope>> {
+        let (x, r) = (x.buffer(), &*result.buf);
+        check_vec("x", x.len(), n, incx)?;
+        check_result("result", r.len())?;
+        distinct(r, "result", x, "x")?;
+        // SAFETY: as `dot`.
+        let raw = unsafe {
+            T::asum_async(
+                self.queue.raw(),
+                dim("n", n)?,
+                x.raw(),
+                dim("incx", incx)?,
+                r.raw(),
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// `result[0]` = zero-based index of the first element of largest magnitude.
+    ///
+    /// # Errors
+    ///
+    /// As [`Scope::dot`].
+    pub fn iamax<T: Scalar>(
+        &'scope self,
+        n: usize,
+        x: &impl Operand<T>,
+        incx: usize,
+        result: &Write<'scope, i64>,
+    ) -> Result<Event<'scope>> {
+        let (x, r) = (x.buffer(), &*result.buf);
+        check_vec("x", x.len(), n, incx)?;
+        check_result("result", r.len())?;
+        distinct(r, "result", x, "x")?;
+        // SAFETY: as `dot`.
+        let raw = unsafe {
+            T::iamax_async(
+                self.queue.raw(),
+                dim("n", n)?,
+                x.raw(),
+                dim("incx", incx)?,
+                r.raw(),
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// `y = alpha * op(A) * x + beta * y`, `A` is `m x n` column-major.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidArgument`] if an extent does not fit or `y` is the same buffer as `a` or
+    /// `x`; submission errors as for [`Scope::gemm`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn gemv<T: Scalar>(
+        &'scope self,
+        trans: Transpose,
+        m: usize,
+        n: usize,
+        alpha: T,
+        a: &impl Operand<T>,
+        lda: usize,
+        x: &impl Operand<T>,
+        incx: usize,
+        beta: T,
+        y: &Write<'scope, T>,
+        incy: usize,
+    ) -> Result<Event<'scope>> {
+        let (a, x, y) = (a.buffer(), x.buffer(), &*y.buf);
+        let (x_len, y_len) = if trans == Transpose::No {
+            (n, m)
+        } else {
+            (m, n)
+        };
+        check_matrix("A", a.len(), lda, m, n)?;
+        check_vec("x", x.len(), x_len, incx)?;
+        check_vec("y", y.len(), y_len, incy)?;
+        distinct(y, "y", a, "A")?;
+        distinct(y, "y", x, "x")?;
+        // SAFETY: as `axpy`.
+        let raw = unsafe {
+            T::gemv_async(
+                self.queue.raw(),
+                trans.code(),
+                dim("m", m)?,
+                dim("n", n)?,
+                alpha,
+                a.raw(),
+                dim("lda", lda)?,
+                x.raw(),
+                dim("incx", incx)?,
+                beta,
+                y.raw(),
+                dim("incy", incy)?,
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// Bind a DFT plan for use in this scope. While it is bound the plan cannot be dropped, since
+    /// the transform that uses it may still be running. First the control, which compiles:
+    ///
+    /// ```no_run
+    /// use bonefish::{Complex, DeviceKind, Dft, Placement, Queue, UsmBuffer, UsmKind};
+    /// # fn main() -> bonefish::Result<()> {
+    /// let q = Queue::new(DeviceKind::Cpu)?;
+    /// let owner = Dft::<f32>::c2c(&q, &[4], Placement::InPlace, 1.0, 1.0)?;
+    /// let mut data = UsmBuffer::<Complex<f32>>::zeroed(&q, UsmKind::Shared, 4)?;
+    /// q.scope(|s| {
+    ///     let plan = s.plan(&owner)?;
+    ///     let d = s.write(&mut data)?;
+    ///     s.dft_forward_in_place(&plan, &d)?;
+    ///     Ok(())
+    /// })?;
+    /// drop(owner); // fine: the scope has ended
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// Dropping the plan inside the scope does not compile:
+    ///
+    /// ```compile_fail,E0505
+    /// use bonefish::{Complex, DeviceKind, Dft, Placement, Queue, UsmBuffer, UsmKind};
+    /// # fn main() -> bonefish::Result<()> {
+    /// let q = Queue::new(DeviceKind::Cpu)?;
+    /// let owner = Dft::<f32>::c2c(&q, &[4], Placement::InPlace, 1.0, 1.0)?;
+    /// let mut data = UsmBuffer::<Complex<f32>>::zeroed(&q, UsmKind::Shared, 4)?;
+    /// q.scope(|s| {
+    ///     let plan = s.plan(&owner)?;
+    ///     let d = s.write(&mut data)?;
+    ///     s.dft_forward_in_place(&plan, &d)?;
+    ///     drop(owner); // the transform may still be using the plan
+    ///     Ok(())
+    /// })?;
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// [`Error::QueueMismatch`] if the plan belongs to another queue.
+    pub fn plan<T: Scalar>(&'scope self, dft: &'scope Dft<T>) -> Result<Plan<'scope, T>> {
+        if !self.queue.same_as(dft.queue()) {
+            return Err(Error::QueueMismatch);
+        }
+        Ok(Plan { dft })
+    }
+
+    fn dft_run<T: Scalar>(
+        &'scope self,
+        plan: &Plan<'scope, T>,
+        dir: i32,
+        input: &UsmBuffer<Complex<T>>,
+        output: Option<&UsmBuffer<Complex<T>>>,
+    ) -> Result<Event<'scope>> {
+        let count = plan.dft.len();
+        for (name, b) in [("input", Some(input)), ("output", output)] {
+            if let Some(b) = b.filter(|b| b.len() < count) {
+                return Err(Error::InvalidArgument(format!(
+                    "{name} has {} elements, the plan needs {count}",
+                    b.len()
+                )));
+            }
+        }
+        let out_ptr = match output {
+            Some(o) => {
+                distinct(o, "output", input, "input")?;
+                o.raw().cast::<c_void>()
+            }
+            None => std::ptr::null_mut(),
+        };
+        // SAFETY: the plan and both buffers are borrowed until the scope ends, which waits first;
+        // lengths cover the plan; placement matches (checked by the callers); output is distinct
+        // from input.
+        let raw = unsafe {
+            T::dft_compute_async(plan.dft.raw(), dir, input.raw().cast(), out_ptr, NO_DEPS, 0)
+        };
+        self.event(raw)
+    }
+
+    fn dft_in_place<T: Scalar>(
+        &'scope self,
+        plan: &Plan<'scope, T>,
+        dir: i32,
+        data: &Write<'scope, Complex<T>>,
+    ) -> Result<Event<'scope>> {
+        if plan.dft.placement() != Placement::InPlace {
+            return Err(Error::InvalidArgument(
+                "this plan is out-of-place; use forward/backward with two buffers".into(),
+            ));
+        }
+        self.dft_run(plan, dir, &*data.buf, None)
+    }
+
+    fn dft_out_of_place<T: Scalar>(
+        &'scope self,
+        plan: &Plan<'scope, T>,
+        dir: i32,
+        input: &impl Operand<Complex<T>>,
+        output: &Write<'scope, Complex<T>>,
+    ) -> Result<Event<'scope>> {
+        if plan.dft.placement() != Placement::NotInPlace {
+            return Err(Error::InvalidArgument(
+                "this plan is in-place; use forward_in_place/backward_in_place".into(),
+            ));
+        }
+        self.dft_run(plan, dir, input.buffer(), Some(&*output.buf))
+    }
+
+    /// Forward transform of `data` in place (an in-place plan).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidArgument`] for a wrong placement or a buffer shorter than the plan;
+    /// submission errors as for [`Scope::gemm`].
+    pub fn dft_forward_in_place<T: Scalar>(
+        &'scope self,
+        plan: &Plan<'scope, T>,
+        data: &Write<'scope, Complex<T>>,
+    ) -> Result<Event<'scope>> {
+        self.dft_in_place(plan, 0, data)
+    }
+
+    /// Backward transform of `data` in place (an in-place plan).
+    ///
+    /// # Errors
+    ///
+    /// As [`Scope::dft_forward_in_place`].
+    pub fn dft_backward_in_place<T: Scalar>(
+        &'scope self,
+        plan: &Plan<'scope, T>,
+        data: &Write<'scope, Complex<T>>,
+    ) -> Result<Event<'scope>> {
+        self.dft_in_place(plan, 1, data)
+    }
+
+    /// Forward transform `input` into `output` (an out-of-place plan).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidArgument`] for a wrong placement, a buffer shorter than the plan, or
+    /// `output` being the same buffer as `input`; submission errors as for [`Scope::gemm`].
+    pub fn dft_forward<T: Scalar>(
+        &'scope self,
+        plan: &Plan<'scope, T>,
+        input: &impl Operand<Complex<T>>,
+        output: &Write<'scope, Complex<T>>,
+    ) -> Result<Event<'scope>> {
+        self.dft_out_of_place(plan, 0, input, output)
+    }
+
+    /// Backward transform `input` into `output` (an out-of-place plan).
+    ///
+    /// # Errors
+    ///
+    /// As [`Scope::dft_forward`].
+    pub fn dft_backward<T: Scalar>(
+        &'scope self,
+        plan: &Plan<'scope, T>,
+        input: &impl Operand<Complex<T>>,
+        output: &Write<'scope, Complex<T>>,
+    ) -> Result<Event<'scope>> {
+        self.dft_out_of_place(plan, 1, input, output)
     }
 }
 

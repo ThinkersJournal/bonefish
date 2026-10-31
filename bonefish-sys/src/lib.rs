@@ -242,6 +242,228 @@ mod ffi {
             deps: *const *mut c_void,
             n_deps: i64,
         ) -> *mut c_void;
+        /// Non-blocking level 1 / `gemv` / DFT (`bf_*_async`): each returns the event, or null on
+        /// failure. Same arguments as the blocking function plus `deps`/`n_deps`. The caller keeps
+        /// the operands alive, and untouched, until the event or the queue has been waited on;
+        /// scalar results are written when the work runs.
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_saxpy_async(
+            q: *mut c_void,
+            n: i64,
+            alpha: f32,
+            x: *const f32,
+            incx: i64,
+            y: *mut f32,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_sscal_async(
+            q: *mut c_void,
+            n: i64,
+            alpha: f32,
+            x: *mut f32,
+            incx: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_scopy_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            y: *mut f32,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_sswap_async(
+            q: *mut c_void,
+            n: i64,
+            x: *mut f32,
+            incx: i64,
+            y: *mut f32,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_sdot_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            y: *const f32,
+            incy: i64,
+            result: *mut f32,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_snrm2_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            result: *mut f32,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_sasum_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            result: *mut f32,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_siamax_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            result: *mut i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_sgemv_async(
+            q: *mut c_void,
+            trans: i32,
+            m: i64,
+            n: i64,
+            alpha: f32,
+            a: *const f32,
+            lda: i64,
+            x: *const f32,
+            incx: i64,
+            beta: f32,
+            y: *mut f32,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_daxpy_async(
+            q: *mut c_void,
+            n: i64,
+            alpha: f64,
+            x: *const f64,
+            incx: i64,
+            y: *mut f64,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_dscal_async(
+            q: *mut c_void,
+            n: i64,
+            alpha: f64,
+            x: *mut f64,
+            incx: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_dcopy_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            y: *mut f64,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_dswap_async(
+            q: *mut c_void,
+            n: i64,
+            x: *mut f64,
+            incx: i64,
+            y: *mut f64,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_ddot_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            y: *const f64,
+            incy: i64,
+            result: *mut f64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_dnrm2_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            result: *mut f64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_dasum_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            result: *mut f64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_diamax_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            result: *mut i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_dgemv_async(
+            q: *mut c_void,
+            trans: i32,
+            m: i64,
+            n: i64,
+            alpha: f64,
+            a: *const f64,
+            lda: i64,
+            x: *const f64,
+            incx: i64,
+            beta: f64,
+            y: *mut f64,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_dft_compute_async(
+            h: *mut c_void,
+            dir: i32,
+            input: *mut c_void,
+            out: *mut c_void,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        /// Diagnostic: `1` chains every asynchronous submission to the queue's previous one (the
+        /// default), `0` turns that off. For A/B runs and for retesting a newer oneMKL.
+        pub fn bf_test_set_async_chain(on: i32);
         /// Diagnostic: how many oneMKL calls have entered the shim's lock path. A test uses it to
         /// prove no oneMKL-calling function bypasses the lock. `-1` in a build without the shim.
         pub fn bf_mkl_lock_acquisitions() -> i64;
@@ -629,6 +851,261 @@ mod stub {
     ) -> *mut c_void {
         std::ptr::null_mut()
     }
+
+    pub unsafe extern "C" fn bf_saxpy_async(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: f32,
+        _x: *const f32,
+        _incx: i64,
+        _y: *mut f32,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_sscal_async(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: f32,
+        _x: *mut f32,
+        _incx: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_scopy_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _y: *mut f32,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_sswap_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *mut f32,
+        _incx: i64,
+        _y: *mut f32,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_sdot_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _y: *const f32,
+        _incy: i64,
+        _result: *mut f32,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_snrm2_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _result: *mut f32,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_sasum_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _result: *mut f32,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_siamax_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _result: *mut i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_sgemv_async(
+        _q: *mut c_void,
+        _trans: i32,
+        _m: i64,
+        _n: i64,
+        _alpha: f32,
+        _a: *const f32,
+        _lda: i64,
+        _x: *const f32,
+        _incx: i64,
+        _beta: f32,
+        _y: *mut f32,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_daxpy_async(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: f64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *mut f64,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_dscal_async(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: f64,
+        _x: *mut f64,
+        _incx: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_dcopy_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *mut f64,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_dswap_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *mut f64,
+        _incx: i64,
+        _y: *mut f64,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_ddot_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *const f64,
+        _incy: i64,
+        _result: *mut f64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_dnrm2_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _result: *mut f64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_dasum_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _result: *mut f64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_diamax_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _result: *mut i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_dgemv_async(
+        _q: *mut c_void,
+        _trans: i32,
+        _m: i64,
+        _n: i64,
+        _alpha: f64,
+        _a: *const f64,
+        _lda: i64,
+        _x: *const f64,
+        _incx: i64,
+        _beta: f64,
+        _y: *mut f64,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_dft_compute_async(
+        _h: *mut c_void,
+        _dir: i32,
+        _input: *mut c_void,
+        _out: *mut c_void,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_test_set_async_chain(_on: i32) {}
 
     pub unsafe extern "C" fn bf_mkl_lock_acquisitions() -> i64 {
         -1

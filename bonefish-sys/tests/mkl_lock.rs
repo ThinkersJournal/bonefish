@@ -45,6 +45,25 @@ const MKL_FUNCS: &[&str] = &[
     "bf_dgemv",
     "bf_sgemm_async",
     "bf_dgemm_async",
+    "bf_saxpy_async",
+    "bf_sscal_async",
+    "bf_scopy_async",
+    "bf_sswap_async",
+    "bf_sdot_async",
+    "bf_snrm2_async",
+    "bf_sasum_async",
+    "bf_siamax_async",
+    "bf_sgemv_async",
+    "bf_daxpy_async",
+    "bf_dscal_async",
+    "bf_dcopy_async",
+    "bf_dswap_async",
+    "bf_ddot_async",
+    "bf_dnrm2_async",
+    "bf_dasum_async",
+    "bf_diamax_async",
+    "bf_dgemv_async",
+    "bf_dft_compute_async",
     "bf_dft_c2c_new",
     "bf_dft_compute",
     "bf_dft_free",
@@ -60,6 +79,7 @@ const NOT_MKL_FUNCS: &[&str] = &[
     "bf_event_wait",
     "bf_event_free",
     "bf_test_async_failure",
+    "bf_test_set_async_chain",
     "bf_malloc",
     "bf_free",
     "bf_memcpy",
@@ -193,6 +213,58 @@ mod counter {
         }};
     }
 
+    /// One non-blocking call of each level-1 / gemv function for one precision: the lock counter
+    /// must move by exactly one for the submission, the event must come back, and it is waited on
+    /// and freed before the buffers go.
+    macro_rules! async_calls {
+        ($q:expr, $t:ty, $axpy:ident, $scal:ident, $copy:ident, $swap:ident, $dot:ident,
+         $nrm2:ident, $asum:ident, $iamax:ident, $gemv:ident, $seen:expr) => {{
+            let sz = std::mem::size_of::<$t>() as i64;
+            let (x, y, r, m) = (
+                Usm::new($q, 16 * sz),
+                Usm::new($q, 16 * sz),
+                Usm::new($q, sz),
+                Usm::new($q, 16 * sz),
+            );
+            let (xp, yp, rp, mp) = (
+                x.p.cast::<$t>(),
+                y.p.cast::<$t>(),
+                r.p.cast::<$t>(),
+                m.p.cast::<$t>(),
+            );
+            let idx = Usm::new($q, 8);
+            let ip = idx.p.cast::<i64>();
+            let none: *const *mut c_void = std::ptr::null();
+            macro_rules! one_async {
+                ($f:ident, $call:expr) => {{
+                    $seen.push(stringify!($f));
+                    let (d, ev) = moved(|| unsafe { $call });
+                    assert!(!ev.is_null(), "{} returned no event", stringify!($f));
+                    assert_eq!(
+                        d,
+                        1,
+                        "{} moved the oneMKL lock counter by {d}, not 1",
+                        stringify!($f)
+                    );
+                    assert_eq!(unsafe { bf_event_wait(ev) }, 0, "{}", stringify!($f));
+                    unsafe { bf_event_free(ev) };
+                }};
+            }
+            one_async!($axpy, $axpy($q, 4, 2.0, xp, 1, yp, 1, none, 0));
+            one_async!($scal, $scal($q, 4, 2.0, xp, 1, none, 0));
+            one_async!($copy, $copy($q, 4, xp, 1, yp, 1, none, 0));
+            one_async!($swap, $swap($q, 4, xp, 1, yp, 1, none, 0));
+            one_async!($dot, $dot($q, 4, xp, 1, yp, 1, rp, none, 0));
+            one_async!($nrm2, $nrm2($q, 4, xp, 1, rp, none, 0));
+            one_async!($asum, $asum($q, 4, xp, 1, rp, none, 0));
+            one_async!($iamax, $iamax($q, 4, xp, 1, ip, none, 0));
+            one_async!(
+                $gemv,
+                $gemv($q, 0, 2, 2, 1.0, mp, 2, xp, 1, 0.0, yp, 1, none, 0)
+            );
+        }};
+    }
+
     #[test]
     fn every_onemkl_function_takes_the_lock_exactly_once() {
         let q = unsafe { bf_queue_new(1) };
@@ -286,6 +358,53 @@ mod counter {
             assert_eq!(d, 1, "bf_dgemm_async moved the counter by {d}, not 1");
             assert_eq!(unsafe { bf_event_wait(e) }, 0);
             unsafe { bf_event_free(e) };
+        }
+
+        async_calls!(
+            q,
+            f32,
+            bf_saxpy_async,
+            bf_sscal_async,
+            bf_scopy_async,
+            bf_sswap_async,
+            bf_sdot_async,
+            bf_snrm2_async,
+            bf_sasum_async,
+            bf_siamax_async,
+            bf_sgemv_async,
+            seen
+        );
+        async_calls!(
+            q,
+            f64,
+            bf_daxpy_async,
+            bf_dscal_async,
+            bf_dcopy_async,
+            bf_dswap_async,
+            bf_ddot_async,
+            bf_dnrm2_async,
+            bf_dasum_async,
+            bf_diamax_async,
+            bf_dgemv_async,
+            seen
+        );
+
+        // Non-blocking DFT compute: a plan, one async compute, wait, free.
+        {
+            let dims = [4_i64];
+            let h = unsafe { bf_dft_c2c_new(q, 1, 1, dims.as_ptr(), 1, 1.0, 1.0) };
+            assert!(!h.is_null());
+            let data = Usm::new(q, 4 * 16);
+            let (d, ev) = moved(|| unsafe {
+                bf_dft_compute_async(h, 0, data.p, std::ptr::null_mut(), std::ptr::null(), 0)
+            });
+            seen.push("bf_dft_compute_async");
+            assert!(!ev.is_null(), "bf_dft_compute_async returned no event");
+            assert_eq!(d, 1, "bf_dft_compute_async moved the counter by {d}, not 1");
+            assert_eq!(unsafe { bf_event_wait(ev) }, 0);
+            unsafe { bf_event_free(ev) };
+            unsafe { bf_dft_free(h) };
+            drop(data);
         }
 
         // The exercised list must be exactly the classified list (no function silently skipped).
