@@ -30,10 +30,15 @@ icpx -fsycl -O2 -qmkl=parallel repro_dft.cpp -o repro_dft$EXE || exit 1
 # cell <label> <command...>: run RUNS fresh processes, tally exit codes.
 cell() {
   local label="$1"; shift
-  local ok=0 wrong=0 hang=0 crash=0 codes=""
+  local ok=0 wrong=0 hang=0 crash=0 codes="" shown=0
   for _ in $(seq 1 "$RUNS"); do
-    timeout 60 "$@" >/dev/null 2>&1
+    timeout 60 "$@" >cell.out 2>&1
     rc=$?
+    if [ "$rc" -ne 0 ] && [ "$shown" -eq 0 ]; then
+      shown=1
+      echo "  first non-clean run of '$label' (exit $rc), last lines of its output:"
+      tail -n 12 cell.out | sed 's/^/    | /'
+    fi
     case $rc in
       0) ok=$((ok + 1)) ;;
       3) wrong=$((wrong + 1)) ;;
