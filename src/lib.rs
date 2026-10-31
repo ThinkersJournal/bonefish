@@ -23,6 +23,7 @@
 //! Only on the CPU (OpenCL) device, on Windows and Linux. No Intel GPU has run any of this.
 
 pub mod blas;
+mod device;
 mod dft;
 mod error;
 mod queue;
@@ -31,6 +32,7 @@ mod scope;
 mod usm;
 
 pub use blas::Transpose;
+pub use device::{DeviceInfo, DeviceType, find_by_pci_address, find_by_uuid};
 pub use dft::{Dft, Placement};
 pub use error::{Error, Result};
 pub use queue::{DeviceKind, Queue};

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.17
+
+- `bonefish`: device enumeration and selection (R5a, `docs/FUEL-INTEL-GPU-DESIGN.md`). `Queue::devices()` lists every SYCL device with name, vendor, backend, type, driver version and, where the device offers them, PCI address, UUID and Intel device id (`None` otherwise, never a guess). A queue can be made on a chosen device with `Queue::with_device(&info)` (re-reads the list first and refuses a stale description), `with_device_index`, `with_pci_address` or `with_uuid` (the pure matchers `find_by_pci_address` / `find_by_uuid` refuse zero or several matches instead of taking the first). `bonefish-sys`: `bf_device_count`, `bf_device_info`, `bf_queue_new_device` (new `shim/devices.cpp`, no oneMKL, no lock).
+- Measured on the only devices available (an OpenCL CPU device on the Windows laptop, and the Linux CI runner's): one device each; the name is space-padded; no PCI address; a UUID and an "Intel device id" are reported even on an AMD CPU, so that id is opaque. Documented in `src/device.rs`.
+- **Not verified:** selection of an index above 0 (one device only), and everything a GPU reports (PCI address, UUID, device id, driver version): no GPU has run any of this. Mutation: with the stale-description guard disabled the test fails ('called `Result::unwrap_err()` on an `Ok` value').
+- Version number is a placeholder for the PM (stacks after 0.0.16).
+
 ## 0.0.16
 
 - Docs only: `docs/FUEL-INTEL-GPU-DESIGN.md` (R5), the Bonefish-side interface proposal for Fuel's ROADMAP row 127 (Intel Arc A770, Fuel's Vulkan path against oneMKL via SYCL). It records Fuel's answers as answers (not measurements), lists the gaps found in the tree and the oneAPI 2026.1 headers (no f16/bf16 `gemm`, no half `gemv` in oneMKL, column-major only, no device enumeration or PCI/UUID matching, no profiling, not on crates.io), states the ordering/error/thread-safety contract including the finding that an in-order queue does not order oneMKL `dot` (Windows, CPU device; Linux not measured), and proposes four small steps and a JSON CLI. No code. Every GPU statement is UNVERIFIED.

@@ -189,6 +189,15 @@ mod ffi {
             y: *mut f64,
             incy: i64,
         ) -> i32;
+        /// Number of SYCL devices, or -1 on failure.
+        pub fn bf_device_count() -> i64;
+        /// One piece of information about device `index`, copied NUL-terminated into `buf`
+        /// (truncated to `cap`). Returns the full length, -1 on failure, or -2 when the device
+        /// does not offer it. `field`: 0 name, 1 vendor, 2 backend, 3 device type, 4 driver
+        /// version, 5 PCI address, 6 UUID (32 hex digits), 7 Intel device id (decimal).
+        pub fn bf_device_info(index: i64, field: i32, buf: *mut c_char, cap: i64) -> i64;
+        /// A queue (in-order, with the async handler) on device `index`. Null on failure.
+        pub fn bf_queue_new_device(index: i64) -> *mut c_void;
         /// 1 if the queue is in-order (every queue from `bf_queue_new` is), 0 if not, -1 on failure.
         pub fn bf_queue_is_in_order(q: *mut c_void) -> i32;
         /// Waits for all work on the queue. Returns 1 (message in `bf_last_error`) if that surfaced
@@ -790,6 +799,23 @@ mod stub {
         _incy: i64,
     ) -> i32 {
         STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_device_count() -> i64 {
+        -1
+    }
+
+    pub unsafe extern "C" fn bf_device_info(
+        _index: i64,
+        _field: i32,
+        _buf: *mut c_char,
+        _cap: i64,
+    ) -> i64 {
+        -1
+    }
+
+    pub unsafe extern "C" fn bf_queue_new_device(_index: i64) -> *mut c_void {
+        std::ptr::null_mut()
     }
 
     pub unsafe extern "C" fn bf_queue_is_in_order(_q: *mut c_void) -> i32 {

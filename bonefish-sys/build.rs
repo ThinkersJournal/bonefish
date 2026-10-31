@@ -63,6 +63,7 @@ fn main() {
         "shim/dft.cpp",
         "shim/blas1.cpp",
         "shim/blas1_async.cpp",
+        "shim/devices.cpp",
     ])
     .arg("-o")
     .arg(&lib);
