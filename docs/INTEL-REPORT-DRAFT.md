@@ -1,6 +1,6 @@
 # Draft report for Intel: oneMKL SYCL BLAS crashes on concurrent first use from several host threads
 
-This draft holds two findings about the oneMKL SYCL interface, each with its own standalone reproducer: **finding 1** (below) concurrent first use of `gemm` from several host threads crashes; **finding 2** (the last section) on an in-order queue, `dot` does not wait for the oneMKL call submitted before it.
+This draft holds three findings about the oneMKL SYCL interface, each with its own standalone reproducer: **finding 1** (below) concurrent first use of `gemm` from several host threads crashes; **finding 2** on an in-order queue, `dot` does not wait for the oneMKL call submitted before it; **finding 3** (the last section) committing a DFT descriptor of length 0 kills the process on Intel Xeon CPUs instead of throwing.
 
 Status: **DRAFT, not sent.** Bonefish lane, 2026-10-31. Sending anything outside the portfolio is the PM's and CireSnave's call; this file exists so that call can be made from one page. No secrets, no private paths. Everything below was measured; what was not measured is listed at the end.
 
@@ -112,3 +112,50 @@ The controls show the harness does not simply report every pair as wrong. The sa
 ## Mitigation in use
 
 Bonefish chains every asynchronous submission to the queue's previous one (each call lists the queue's last event as a dependency; `bonefish-sys/shim/common.hpp`, `deps_chained`), so it does not rely on the queue's order for oneMKL. `BONEFISH_UNSAFE_NO_ASYNC_CHAIN=1` turns the chain off so the same binary can show whether a newer oneMKL still needs it.
+
+# Finding 3: committing a DFT descriptor of length 0 crashes with SIGFPE on Intel Xeon CPUs
+
+## Summary
+
+`oneapi::mkl::dft::descriptor<..., COMPLEX>` of length 0, followed by `commit(queue)` on a CPU queue, is refused with the exception `FFT_INVALID_DESCRIPTOR` on AMD EPYC, which is the behaviour an invalid descriptor should have. On Intel Xeon CPUs with default instruction-set dispatch the process is instead killed by `SIGFPE` (exit 136 on Linux, "core dumped") after Intel's "PLEASE submit a bug report ... include the crash backtrace" banner. The same call on the same Intel hosts with `MKL_ENABLE_INSTRUCTIONS=AVX2` throws `FFT_INVALID_DESCRIPTOR`. Valid lengths work everywhere measured. One thread; no queue sharing; not a race.
+
+## Environment
+
+| | |
+|---|---|
+| OS | GitHub-hosted runners, image `ubuntu-24.04` (Linux) |
+| Compiler | Intel oneAPI DPC++/C++ 2026.2.0 (2026.2.0.20261001), from Intel's apt repository |
+| oneMKL | `mkl_version.h`: `__INTEL_MKL__ 2026`, `MINOR 0`, `UPDATE 2` |
+| OpenCL CPU runtime | 2026.22.10.0.01 (as printed by `sycl-ls`) |
+| Device | `sycl::cpu_selector_v` |
+| GPU | **none involved** |
+| CPUs that crashed | Intel Xeon Platinum 8370C @ 2.80 GHz; Intel Xeon Platinum 8573C |
+| CPUs that did not | AMD EPYC 7763, 9V45, 9V74; also a Windows laptop, AMD Ryzen 9 7940HX, oneAPI 2026.1 (threw) |
+
+The runners were assigned by the CI service, not chosen; the CPU of each was read from `lscpu` and `sycl-ls` in the same job.
+
+## Reproducer
+
+`docs/intel-report/repro_dft.cpp` (plain C++ plus SYCL and oneMKL, no other dependencies; build and run lines are in its header). Usage `repro_dft <s|d> <inplace 0|1> <n> [rounds]`: builds a 1-D complex-to-complex descriptor of length `n`, commits it on a CPU queue, transforms a delta and checks the answer. It prints a "stage:" line before each step, so the last one printed places a crash.
+
+## Results
+
+| Measurement | Intel Xeon runners | AMD EPYC runners |
+|---|---|---|
+| `n = 0`, both precisions, in-place and not (4 configurations per runner), default dispatch | 3 runners x 4 = 12 of 12 killed by SIGFPE (exit 136) | 13 runners x 4 = 52 of 52 threw `FFT_INVALID_DESCRIPTOR`; no crash |
+| the same with `MKL_ENABLE_INSTRUCTIONS=AVX2` | 12 of 12 threw `FFT_INVALID_DESCRIPTOR` | 52 of 52 threw `FFT_INVALID_DESCRIPTOR` (same as default) |
+| `n = -1` | threw `FFT_ALLOC_FAILED` (24 of 24: 12 per dispatch setting) | threw `FFT_ALLOC_FAILED` (104 of 104) |
+| where it dies (stage markers, one Intel runner, Xeon 8370C) | last stage printed is "committing": the crash is inside `commit` | threw `FFT_INVALID_DESCRIPTOR` from `commit` (15 of 15 AMD runners) |
+| valid lengths 2, 4, 5, 8, 12, 16, 30, 64, 100 x single/double x in-place/out-of-place (36 configurations) | all correct on 3 Intel Xeon runners (one 8573C, two 8370C) | all correct on 13 AMD runners |
+
+The same crash was first found through a Rust test that creates a descriptor of length 0 and expects an error: that test binary died with SIGFPE in 30 of 30 runs on a Xeon 8370C with default dispatch and passed 30 of 30 with `MKL_ENABLE_INSTRUCTIONS=AVX2`; on each of 9 AMD runners it passed 30 of 30 in both settings. Run alone, 3 of 3 on each of three Intel runners (two Xeon 8573C, one 8370C) died with default dispatch and passed with AVX2; the other six tests in that file passed everywhere.
+
+## What this does and does not show
+
+- It shows that, on these Xeons, oneMKL turns an invalid descriptor into a process kill inside `commit`, while the same build refuses it with an exception on AMD and with AVX2 forced. The AVX2 result suggests the default dispatch picks a code path that divides by the length, but **which instruction-set path default dispatch selects on these CPUs was not measured**, and the other `MKL_ENABLE_INSTRUCTIONS` values (AVX512 and the AVX512_E* levels) were not tried.
+- Only a length of 0 was found to crash. Other invalid descriptors (other configuration parameters, strides, multi-dimensional shapes with a zero) were not tried in the standalone program; `[4, 0]` and `[0, 4]` were refused by Bonefish before reaching oneMKL and so are not evidence either way.
+- Not measured: Windows on Intel hardware; any GPU; Intel client CPUs; other oneMKL releases; the C `DFTI` interface (the report is about the SYCL interface only).
+
+## Mitigation in use
+
+Bonefish refuses a DFT length below 1 itself, before it reaches oneMKL (`bonefish-sys/shim/dft.cpp`), and its test checks that the refusal is its own, not oneMKL's.
