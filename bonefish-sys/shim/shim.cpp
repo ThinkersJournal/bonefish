@@ -196,7 +196,8 @@ BF_API void *bf_malloc(void *q, int32_t kind, int64_t bytes) {
 BF_API void bf_free(void *q, void *p) { sycl::free(p, Q(q)); }
 
 BF_API int32_t bf_memcpy(void *q, void *dst, const void *src, int64_t bytes) {
-  return guard([&] { Q(q).memcpy(dst, src, static_cast<size_t>(bytes)).wait(); });
+  int32_t rc = guard([&] { Q(q).memcpy(dst, src, static_cast<size_t>(bytes)).wait(); });
+  return rc != 0 ? rc : bf::settle(Q(q), *bf::Store(q));
 }
 
 // Column-major GEMM, blocking. transa/transb: 0 N, 1 T, 2 C.
@@ -204,7 +205,7 @@ BF_API int32_t bf_memcpy(void *q, void *dst, const void *src, int64_t bytes) {
   BF_API int32_t NAME(void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t k,          \
                       TY alpha, const TY *a, int64_t lda, const TY *b, int64_t ldb, TY beta,     \
                       TY *c, int64_t ldc) {                                                      \
-    return bf::guard_mkl([&] {                                                                   \
+    return bf::guard_blocking(Q(q), *bf::Store(q), [&] {                                         \
       oneapi::mkl::blas::column_major::gemm(Q(q), T(ta), T(tb), m, n, k, alpha, a, lda, b, ldb,  \
                                             beta, c, ldc)                                        \
           .wait();                                                                               \

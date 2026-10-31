@@ -224,4 +224,21 @@ template <class F> int32_t guard_mkl(F &&f) {
   MklLock lock;
   return guard(std::forward<F>(f));
 }
+
+// The end of every blocking entry point (ROADMAP R3d): wait for the queue and collect its
+// asynchronous errors, so a failure that surfaces during the call is reported by it (status 1)
+// instead of staying in the store for some later wait. Waits for the whole queue, not just this
+// call's event, because `wait_and_throw` is what delivers the errors; on an in-order queue that is
+// the same set of work. Run after the oneMKL lock is released.
+inline int32_t settle(sycl::queue &q, ErrStore &st) {
+  int32_t rc = guard([&] { q.wait_and_throw(); });
+  int32_t arc = drain_async_errors(st);
+  return rc != 0 ? rc : arc;
+}
+
+// `guard_mkl`, then `settle` when the call itself succeeded.
+template <class F> int32_t guard_blocking(sycl::queue &q, ErrStore &st, F &&f) {
+  int32_t rc = guard_mkl(std::forward<F>(f));
+  return rc != 0 ? rc : settle(q, st);
+}
 } // namespace bf

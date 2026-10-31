@@ -30,7 +30,7 @@ template <class R>
 int32_t gemm_blocking(void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t k,
                       const R *alpha, const R *a, int64_t lda, const R *b, int64_t ldb,
                       const R *beta, R *c, int64_t ldc) {
-  return bf::guard_mkl([&] {
+  return bf::guard_blocking(bf::Q(q), *bf::Store(q), [&] {
     const Cx<R> al(alpha[0], alpha[1]);
     const Cx<R> be(beta[0], beta[1]);
     blas::gemm(bf::Q(q), T(ta), T(tb), m, n, k, al, cx(a), lda, cx(b), ldb, be, cx(c), ldc).wait();

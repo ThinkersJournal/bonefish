@@ -106,7 +106,8 @@ BF_API void bf_dftr_free(void *h) {
 // Blocking transform on USM data. dir: 0 forward (real in, half-spectrum complex out), 1 backward
 // (half-spectrum complex in, real out).
 BF_API int32_t bf_dftr_compute(void *h, int32_t dir, void *in, void *out) {
-  return bf::guard_mkl([&] { run_any(*static_cast<DftR *>(h), dir == 0, in, out, {}).wait(); });
+  auto *p = static_cast<DftR *>(h);
+  return bf::guard_blocking(p->q, *p->store, [&] { run_any(*p, dir == 0, in, out, {}).wait(); });
 }
 
 // Non-blocking: as bf_dftr_compute, but returns the event (null on failure, see bf_last_error) and
