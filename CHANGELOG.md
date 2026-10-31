@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.14
+
+- **Fix: `bf_dft_c2c_new` refuses a DFT length below 1 itself, before oneMKL.** Committing a oneMKL SYCL DFT descriptor of length 0 kills the process with SIGFPE on Intel Xeon CPUs under default instruction-set dispatch (Xeon Platinum 8370C and 8573C, oneAPI 2026.2, Linux CI), while AMD EPYC and `MKL_ENABLE_INSTRUCTIONS=AVX2` get the expected `FFT_INVALID_DESCRIPTOR` exception. This is what made the Linux `oneapi` CI job fail intermittently on `bonefish-sys --test dft` (main@772c5bc post-merge, #15 twice): the runner CPU is assigned at random and every failure was on a Xeon, every pass on an AMD EPYC. It is not caused by the async work: the commit before it (7ecf94a) crashes the same way. Cause pinned by a standalone C++ program with no Bonefish code, `docs/intel-report/repro_dft.cpp` (12 of 12 crashes on 3 Intel runners, 0 on AMD, stage markers place it inside `commit`); written up as finding 3 in `docs/INTEL-REPORT-DRAFT.md` (draft, **not sent**). The safe `Dft::c2c` already refused 0; only the raw shim entry (and the sys-level test that calls it) passed it through.
+- Test: `invalid_plan_is_an_error_not_a_crash` now checks five bad shapes (`[0]`, `[4, 0]`, `[0, 4]`, `[-1]`, `[4, -3]`) and that the refusal carries the shim's own message, so it cannot pass by oneMKL happening to refuse; with a valid length as the control. Mutation: with the guard disabled the test fails here with 'refused by oneMKL or not at all, not by the shim: FFT_INVALID_DESCRIPTOR'.
+- ROADMAP R9 records the measurements and what was NOT measured (default dispatch path, AVX512 levels, other invalid descriptors, Windows on Intel hardware, DFTI, any GPU). Version number is a placeholder for the PM.
+
 ## 0.0.13
 
 - `bonefish`: scoped non-blocking level 1 (`axpy`, `scal`, `copy`, `swap`, `dot`, `nrm2`, `asum`, `iamax`), `gemv` and DFT (`Scope::plan` binds a `Dft` with a shared borrow; `dft_forward`/`dft_backward`, in place and out of place) on `Scope`, for `f32` and `f64` (R3c step 3). Vector increments must be at least 1. Refusals before anything is submitted: a buffer too short for its extent, a zero increment, a result buffer that is empty, an output that is the same buffer as an input, a plan of the wrong placement, a plan or buffer from another queue. `i64` is now an `Element` (the index `iamax` writes).

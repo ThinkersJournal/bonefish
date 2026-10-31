@@ -174,10 +174,23 @@ fn out_of_place_leaves_input_untouched() {
 #[test]
 fn invalid_plan_is_an_error_not_a_crash() {
     let env = Env::new();
-    let dims = [0_i64];
-    let h = unsafe { bf_dft_c2c_new(env.q, 1, 1, dims.as_ptr(), 1, 1.0, 1.0) };
-    assert!(h.is_null());
-    assert!(!err().is_empty());
+    // A zero length must be refused by the shim itself, before oneMKL: on Intel Xeon CPUs with
+    // default dispatch oneMKL crashes with SIGFPE on it (ROADMAP R9). The message proves whose
+    // refusal it is: oneMKL's own would be `FFT_INVALID_DESCRIPTOR`.
+    for dims in [vec![0_i64], vec![4, 0], vec![0, 4], vec![-1], vec![4, -3]] {
+        let h = unsafe { bf_dft_c2c_new(env.q, 1, dims.len() as i64, dims.as_ptr(), 1, 1.0, 1.0) };
+        assert!(h.is_null(), "{dims:?} must be refused");
+        let msg = err();
+        assert!(
+            msg.contains("every length must be at least 1"),
+            "{dims:?}: refused by oneMKL or not at all, not by the shim: {msg:?}"
+        );
+    }
+    // Control: a valid length is accepted by the same call.
+    let ok_dims = [4_i64];
+    let ok = unsafe { bf_dft_c2c_new(env.q, 1, 1, ok_dims.as_ptr(), 1, 1.0, 1.0) };
+    assert!(!ok.is_null());
+    unsafe { bf_dft_free(ok) };
     let none = unsafe { bf_dft_c2c_new(env.q, 1, 0, std::ptr::null(), 1, 1.0, 1.0) };
     assert!(none.is_null());
 }
