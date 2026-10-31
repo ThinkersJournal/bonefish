@@ -66,6 +66,10 @@ const MKL_FUNCS: &[&str] = &[
     "bf_dft_compute_async",
     "bf_dft_c2c_new",
     "bf_dft_compute",
+    "bf_cgemm",
+    "bf_zgemm",
+    "bf_cgemm_async",
+    "bf_zgemm_async",
     "bf_dftr_new",
     "bf_dftr_free",
     "bf_dftr_compute",
@@ -415,6 +419,106 @@ mod counter {
             unsafe { bf_event_free(ev) };
             unsafe { bf_dft_free(h) };
             drop(data);
+        }
+
+        // Complex gemm, single and double, blocking and non-blocking: 2 x 2 matrices of complex
+        // numbers (2 reals each), alpha and beta passed by pointer.
+        {
+            let (a32, c32) = (Usm::new(q, 4 * 8), Usm::new(q, 4 * 8));
+            let (a64, c64) = (Usm::new(q, 4 * 16), Usm::new(q, 4 * 16));
+            let (one32, zero32) = ([1.0_f32, 0.0], [0.0_f32, 0.0]);
+            let (one64, zero64) = ([1.0_f64, 0.0], [0.0_f64, 0.0]);
+            let (d, rc) = moved(|| unsafe {
+                bf_cgemm(
+                    q,
+                    0,
+                    0,
+                    2,
+                    2,
+                    2,
+                    one32.as_ptr(),
+                    a32.p.cast(),
+                    2,
+                    a32.p.cast(),
+                    2,
+                    zero32.as_ptr(),
+                    c32.p.cast(),
+                    2,
+                )
+            });
+            seen.push("bf_cgemm");
+            assert_eq!((rc, d), (0, 1), "bf_cgemm: status {rc}, counter moved {d}");
+            let (d, rc) = moved(|| unsafe {
+                bf_zgemm(
+                    q,
+                    0,
+                    0,
+                    2,
+                    2,
+                    2,
+                    one64.as_ptr(),
+                    a64.p.cast(),
+                    2,
+                    a64.p.cast(),
+                    2,
+                    zero64.as_ptr(),
+                    c64.p.cast(),
+                    2,
+                )
+            });
+            seen.push("bf_zgemm");
+            assert_eq!((rc, d), (0, 1), "bf_zgemm: status {rc}, counter moved {d}");
+            let (d, ev) = moved(|| unsafe {
+                bf_cgemm_async(
+                    q,
+                    0,
+                    0,
+                    2,
+                    2,
+                    2,
+                    one32.as_ptr(),
+                    a32.p.cast(),
+                    2,
+                    a32.p.cast(),
+                    2,
+                    zero32.as_ptr(),
+                    c32.p.cast(),
+                    2,
+                    std::ptr::null(),
+                    0,
+                )
+            });
+            seen.push("bf_cgemm_async");
+            assert!(!ev.is_null(), "bf_cgemm_async returned no event");
+            assert_eq!(d, 1, "bf_cgemm_async moved the counter by {d}, not 1");
+            assert_eq!(unsafe { bf_event_wait(ev) }, 0);
+            unsafe { bf_event_free(ev) };
+            let (d, ev) = moved(|| unsafe {
+                bf_zgemm_async(
+                    q,
+                    0,
+                    0,
+                    2,
+                    2,
+                    2,
+                    one64.as_ptr(),
+                    a64.p.cast(),
+                    2,
+                    a64.p.cast(),
+                    2,
+                    zero64.as_ptr(),
+                    c64.p.cast(),
+                    2,
+                    std::ptr::null(),
+                    0,
+                )
+            });
+            seen.push("bf_zgemm_async");
+            assert!(!ev.is_null(), "bf_zgemm_async returned no event");
+            assert_eq!(d, 1, "bf_zgemm_async moved the counter by {d}, not 1");
+            assert_eq!(unsafe { bf_event_wait(ev) }, 0);
+            unsafe { bf_event_free(ev) };
+            drop((a32, c32, a64, c64));
         }
 
         // Real DFT: create, blocking compute, async compute, free are four separate entries. Length

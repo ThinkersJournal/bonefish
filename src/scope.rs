@@ -52,7 +52,7 @@ use crate::blas::{Transpose, check_matrix, dim};
 use crate::dft::{Dft, Placement};
 use crate::error::{Error, Result, check, last_message};
 use crate::queue::Queue;
-use crate::scalar::{Complex, Element, Scalar};
+use crate::scalar::{Complex, Element, GemmElement, Scalar};
 use crate::usm::UsmBuffer;
 
 mod sealed {
@@ -378,7 +378,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
     /// same buffer as `a` or `b`; [`Error::Sycl`]/[`Error::Mkl`]/[`Error::Other`] if submission
     /// fails.
     #[allow(clippy::too_many_arguments)]
-    pub fn gemm<T: Scalar>(
+    pub fn gemm<T: GemmElement>(
         &'scope self,
         transa: Transpose,
         transb: Transpose,
@@ -420,7 +420,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
     ///
     /// As [`Scope::gemm`].
     #[allow(clippy::too_many_arguments)]
-    pub fn gemm_after<T: Scalar>(
+    pub fn gemm_after<T: GemmElement>(
         &'scope self,
         after: &[&Event<'scope>],
         transa: Transpose,
@@ -464,7 +464,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         // submission to the queue's previous one, so it cannot overlap earlier ones that name the
         // same buffers. `deps` are live events of this scope.
         let raw = unsafe {
-            T::gemm_async(
+            T::gemm_raw_async(
                 self.queue.raw(),
                 transa.code(),
                 transb.code(),

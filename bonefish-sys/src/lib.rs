@@ -511,6 +511,81 @@ mod ffi {
             deps: *const *mut c_void,
             n_deps: i64,
         ) -> *mut c_void;
+        /// Complex `gemm` (`c` single, `z` double). Complex data is interleaved (re, im); `alpha`
+        /// and `beta` are passed by POINTER to two reals, never by value. `*_async` return the event
+        /// (null on failure) and take a dependency array; the others block.
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_cgemm(
+            q: *mut c_void,
+            ta: i32,
+            tb: i32,
+            m: i64,
+            n: i64,
+            k: i64,
+            alpha: *const f32,
+            a: *const f32,
+            lda: i64,
+            b: *const f32,
+            ldb: i64,
+            beta: *const f32,
+            c: *mut f32,
+            ldc: i64,
+        ) -> i32;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_zgemm(
+            q: *mut c_void,
+            ta: i32,
+            tb: i32,
+            m: i64,
+            n: i64,
+            k: i64,
+            alpha: *const f64,
+            a: *const f64,
+            lda: i64,
+            b: *const f64,
+            ldb: i64,
+            beta: *const f64,
+            c: *mut f64,
+            ldc: i64,
+        ) -> i32;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_cgemm_async(
+            q: *mut c_void,
+            ta: i32,
+            tb: i32,
+            m: i64,
+            n: i64,
+            k: i64,
+            alpha: *const f32,
+            a: *const f32,
+            lda: i64,
+            b: *const f32,
+            ldb: i64,
+            beta: *const f32,
+            c: *mut f32,
+            ldc: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_zgemm_async(
+            q: *mut c_void,
+            ta: i32,
+            tb: i32,
+            m: i64,
+            n: i64,
+            k: i64,
+            alpha: *const f64,
+            a: *const f64,
+            lda: i64,
+            b: *const f64,
+            ldb: i64,
+            beta: *const f64,
+            c: *mut f64,
+            ldc: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
         /// Diagnostic: how many oneMKL calls have entered the shim's lock path. A test uses it to
         /// prove no oneMKL-calling function bypasses the lock. `-1` in a build without the shim.
         pub fn bf_mkl_lock_acquisitions() -> i64;
@@ -1222,6 +1297,86 @@ mod stub {
         _dir: i32,
         _input: *mut c_void,
         _out: *mut c_void,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_cgemm(
+        _q: *mut c_void,
+        _ta: i32,
+        _tb: i32,
+        _m: i64,
+        _n: i64,
+        _k: i64,
+        _alpha: *const f32,
+        _a: *const f32,
+        _lda: i64,
+        _b: *const f32,
+        _ldb: i64,
+        _beta: *const f32,
+        _c: *mut f32,
+        _ldc: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_zgemm(
+        _q: *mut c_void,
+        _ta: i32,
+        _tb: i32,
+        _m: i64,
+        _n: i64,
+        _k: i64,
+        _alpha: *const f64,
+        _a: *const f64,
+        _lda: i64,
+        _b: *const f64,
+        _ldb: i64,
+        _beta: *const f64,
+        _c: *mut f64,
+        _ldc: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_cgemm_async(
+        _q: *mut c_void,
+        _ta: i32,
+        _tb: i32,
+        _m: i64,
+        _n: i64,
+        _k: i64,
+        _alpha: *const f32,
+        _a: *const f32,
+        _lda: i64,
+        _b: *const f32,
+        _ldb: i64,
+        _beta: *const f32,
+        _c: *mut f32,
+        _ldc: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe extern "C" fn bf_zgemm_async(
+        _q: *mut c_void,
+        _ta: i32,
+        _tb: i32,
+        _m: i64,
+        _n: i64,
+        _k: i64,
+        _alpha: *const f64,
+        _a: *const f64,
+        _lda: i64,
+        _b: *const f64,
+        _ldb: i64,
+        _beta: *const f64,
+        _c: *mut f64,
+        _ldc: i64,
         _deps: *const *mut c_void,
         _n_deps: i64,
     ) -> *mut c_void {

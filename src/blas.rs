@@ -3,7 +3,7 @@
 
 use crate::error::{Error, Result};
 use crate::queue::Queue;
-use crate::scalar::Scalar;
+use crate::scalar::{GemmElement, Scalar};
 use crate::usm::UsmBuffer;
 
 /// How a matrix operand is used. For real types `ConjTrans` is the same as `Trans`.
@@ -72,7 +72,7 @@ pub(crate) fn dim(name: &str, v: usize) -> Result<i64> {
 /// [`Error::InvalidArgument`] if a leading dimension is below its row count or a buffer is too
 /// short for the matrix it must hold; [`Error::Sycl`] / [`Error::Mkl`] from the device.
 #[allow(clippy::too_many_arguments)]
-pub fn gemm<T: Scalar>(
+pub fn gemm<T: GemmElement>(
     queue: &Queue,
     transa: Transpose,
     transb: Transpose,
@@ -108,7 +108,7 @@ pub fn gemm<T: Scalar>(
     // the buffers, so the device reads and writes stay in bounds. `c` is exclusively borrowed, so
     // it cannot alias `a` or `b`.
     let rc = unsafe {
-        T::gemm(
+        T::gemm_raw(
             queue.raw(),
             transa.code(),
             transb.code(),
