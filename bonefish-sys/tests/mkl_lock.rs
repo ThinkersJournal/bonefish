@@ -66,6 +66,26 @@ const MKL_FUNCS: &[&str] = &[
     "bf_dft_compute_async",
     "bf_dft_c2c_new",
     "bf_dft_compute",
+    "bf_caxpy_async",
+    "bf_cscal_async",
+    "bf_ccopy_async",
+    "bf_cswap_async",
+    "bf_cdotu_async",
+    "bf_cdotc_async",
+    "bf_cnrm2_async",
+    "bf_casum_async",
+    "bf_ciamax_async",
+    "bf_cgemv_async",
+    "bf_zaxpy_async",
+    "bf_zscal_async",
+    "bf_zcopy_async",
+    "bf_zswap_async",
+    "bf_zdotu_async",
+    "bf_zdotc_async",
+    "bf_znrm2_async",
+    "bf_zasum_async",
+    "bf_ziamax_async",
+    "bf_zgemv_async",
     "bf_cgemm",
     "bf_zgemm",
     "bf_cgemm_async",
@@ -275,6 +295,75 @@ mod counter {
             one_async!(
                 $gemv,
                 $gemv($q, 0, 2, 2, 1.0, mp, 2, xp, 1, 0.0, yp, 1, none, 0)
+            );
+        }};
+    }
+
+    /// One non-blocking call of each complex level-1 function and `gemv` for one precision: the
+    /// lock counter must move by exactly one, an event must come back, and it is waited on and
+    /// freed before the buffers go. Complex scalars go in by pointer to two reals.
+    macro_rules! complex_level1_calls {
+        ($q:expr, $r:ty, $axpy:ident, $scal:ident, $copy:ident, $swap:ident, $dotu:ident,
+         $dotc:ident, $nrm2:ident, $asum:ident, $iamax:ident, $gemv:ident, $seen:expr) => {{
+            let sz = std::mem::size_of::<$r>() as i64;
+            let (x, y, m) = (
+                Usm::new($q, 64 * sz),
+                Usm::new($q, 64 * sz),
+                Usm::new($q, 64 * sz),
+            );
+            let (cres, rres) = (Usm::new($q, 2 * sz), Usm::new($q, sz));
+            let idx = Usm::new($q, 8);
+            let (xp, yp, mp) = (x.p.cast::<$r>(), y.p.cast::<$r>(), m.p.cast::<$r>());
+            let (cp, rp, ip) = (
+                cres.p.cast::<$r>(),
+                rres.p.cast::<$r>(),
+                idx.p.cast::<i64>(),
+            );
+            let one: [$r; 2] = [1.0, 0.0];
+            let zero: [$r; 2] = [0.0, 0.0];
+            let none: *const *mut c_void = std::ptr::null();
+            macro_rules! one_cx {
+                ($f:ident, $call:expr) => {{
+                    $seen.push(stringify!($f));
+                    let (d, ev) = moved(|| unsafe { $call });
+                    assert!(!ev.is_null(), "{} returned no event", stringify!($f));
+                    assert_eq!(
+                        d,
+                        1,
+                        "{} moved the oneMKL lock counter by {d}, not 1",
+                        stringify!($f)
+                    );
+                    assert_eq!(unsafe { bf_event_wait(ev) }, 0, "{}", stringify!($f));
+                    unsafe { bf_event_free(ev) };
+                }};
+            }
+            one_cx!($axpy, $axpy($q, 4, one.as_ptr(), xp, 1, yp, 1, none, 0));
+            one_cx!($scal, $scal($q, 4, one.as_ptr(), xp, 1, none, 0));
+            one_cx!($copy, $copy($q, 4, xp, 1, yp, 1, none, 0));
+            one_cx!($swap, $swap($q, 4, xp, 1, yp, 1, none, 0));
+            one_cx!($dotu, $dotu($q, 4, xp, 1, yp, 1, cp, none, 0));
+            one_cx!($dotc, $dotc($q, 4, xp, 1, yp, 1, cp, none, 0));
+            one_cx!($nrm2, $nrm2($q, 4, xp, 1, rp, none, 0));
+            one_cx!($asum, $asum($q, 4, xp, 1, rp, none, 0));
+            one_cx!($iamax, $iamax($q, 4, xp, 1, ip, none, 0));
+            one_cx!(
+                $gemv,
+                $gemv(
+                    $q,
+                    0,
+                    2,
+                    2,
+                    one.as_ptr(),
+                    mp,
+                    2,
+                    xp,
+                    1,
+                    zero.as_ptr(),
+                    yp,
+                    1,
+                    none,
+                    0
+                )
             );
         }};
     }
@@ -520,6 +609,37 @@ mod counter {
             unsafe { bf_event_free(ev) };
             drop((a32, c32, a64, c64));
         }
+
+        complex_level1_calls!(
+            q,
+            f32,
+            bf_caxpy_async,
+            bf_cscal_async,
+            bf_ccopy_async,
+            bf_cswap_async,
+            bf_cdotu_async,
+            bf_cdotc_async,
+            bf_cnrm2_async,
+            bf_casum_async,
+            bf_ciamax_async,
+            bf_cgemv_async,
+            seen
+        );
+        complex_level1_calls!(
+            q,
+            f64,
+            bf_zaxpy_async,
+            bf_zscal_async,
+            bf_zcopy_async,
+            bf_zswap_async,
+            bf_zdotu_async,
+            bf_zdotc_async,
+            bf_znrm2_async,
+            bf_zasum_async,
+            bf_ziamax_async,
+            bf_zgemv_async,
+            seen
+        );
 
         // Real DFT: create, blocking compute, async compute, free are four separate entries. Length
         // 4 real -> 3 complex (4/2 + 1) in the half spectrum.

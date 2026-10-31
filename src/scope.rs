@@ -52,7 +52,7 @@ use crate::blas::{Transpose, check_matrix, dim};
 use crate::dft::{Dft, Placement};
 use crate::error::{Error, Result, check, last_message};
 use crate::queue::Queue;
-use crate::scalar::{Complex, Element, GemmElement, Scalar};
+use crate::scalar::{BlasElement, Complex, Element, GemmElement, Scalar};
 use crate::usm::UsmBuffer;
 
 mod sealed {
@@ -574,7 +574,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
     ///
     /// [`Error::InvalidArgument`] if an extent does not fit its buffer or `y` is the same buffer as
     /// `x`; submission errors as for [`Scope::gemm`].
-    pub fn axpy<T: Scalar>(
+    pub fn axpy<T: BlasElement>(
         &'scope self,
         n: usize,
         alpha: T,
@@ -590,7 +590,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         // SAFETY: extents checked; buffers are USM of this scope's queue, borrowed until the scope
         // ends, which waits first; `y` is distinct from `x`.
         let raw = unsafe {
-            T::axpy_async(
+            T::axpy_raw_async(
                 self.queue.raw(),
                 dim("n", n)?,
                 alpha,
@@ -611,7 +611,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
     ///
     /// [`Error::InvalidArgument`] if the extent does not fit; submission errors as for
     /// [`Scope::gemm`].
-    pub fn scal<T: Scalar>(
+    pub fn scal<T: BlasElement>(
         &'scope self,
         n: usize,
         alpha: T,
@@ -622,7 +622,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         check_vec("x", x.len(), n, incx)?;
         // SAFETY: as `axpy`.
         let raw = unsafe {
-            T::scal_async(
+            T::scal_raw_async(
                 self.queue.raw(),
                 dim("n", n)?,
                 alpha,
@@ -640,7 +640,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
     /// # Errors
     ///
     /// As [`Scope::axpy`].
-    pub fn copy<T: Scalar>(
+    pub fn copy<T: BlasElement>(
         &'scope self,
         n: usize,
         x: &impl Operand<T>,
@@ -654,7 +654,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         distinct(y, "y", x, "x")?;
         // SAFETY: as `axpy`.
         let raw = unsafe {
-            T::copy_async(
+            T::copy_raw_async(
                 self.queue.raw(),
                 dim("n", n)?,
                 x.raw(),
@@ -673,7 +673,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
     /// # Errors
     ///
     /// As [`Scope::axpy`].
-    pub fn swap<T: Scalar>(
+    pub fn swap<T: BlasElement>(
         &'scope self,
         n: usize,
         x: &Write<'scope, T>,
@@ -687,7 +687,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         distinct(x, "x", y, "y")?;
         // SAFETY: as `axpy`.
         let raw = unsafe {
-            T::swap_async(
+            T::swap_raw_async(
                 self.queue.raw(),
                 dim("n", n)?,
                 x.raw(),
@@ -701,14 +701,15 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         self.event(raw)
     }
 
-    /// `result[0] = x . y`. The result is written when the work runs, so read it after the scope
+    /// `result[0] = x . y`, the plain (unconjugated) product `sum x_i * y_i`; for complex data this is
+    /// BLAS `dotu`. See [`Scope::dotc`] for the conjugated one. The result is written when the work runs, so read it after the scope
     /// (or after waiting for the returned event).
     ///
     /// # Errors
     ///
     /// [`Error::InvalidArgument`] if an extent does not fit or `result` is the same buffer as `x`
     /// or `y`; submission errors as for [`Scope::gemm`].
-    pub fn dot<T: Scalar>(
+    pub fn dot<T: BlasElement>(
         &'scope self,
         n: usize,
         x: &impl Operand<T>,
@@ -725,7 +726,46 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         distinct(r, "result", y, "y")?;
         // SAFETY: as `axpy`; `result` has at least one element and is distinct from the inputs.
         let raw = unsafe {
-            T::dot_async(
+            T::dot_raw_async(
+                self.queue.raw(),
+                dim("n", n)?,
+                x.raw(),
+                dim("incx", incx)?,
+                y.raw(),
+                dim("incy", incy)?,
+                r.raw(),
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// `result[0] = conj(x) . y`: the conjugated dot product. For real data this is `dot`. The result is written when the work runs, so read it after the scope
+    /// (or after waiting for the returned event).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidArgument`] if an extent does not fit or `result` is the same buffer as `x`
+    /// or `y`; submission errors as for [`Scope::gemm`].
+    pub fn dotc<T: BlasElement>(
+        &'scope self,
+        n: usize,
+        x: &impl Operand<T>,
+        incx: usize,
+        y: &impl Operand<T>,
+        incy: usize,
+        result: &Write<'scope, T>,
+    ) -> Result<Event<'scope>> {
+        let (x, y, r) = (x.buffer(), y.buffer(), &*result.buf);
+        check_vec("x", x.len(), n, incx)?;
+        check_vec("y", y.len(), n, incy)?;
+        check_result("result", r.len())?;
+        distinct(r, "result", x, "x")?;
+        distinct(r, "result", y, "y")?;
+        // SAFETY: as `axpy`; `result` has at least one element and is distinct from the inputs.
+        let raw = unsafe {
+            T::dotc_raw_async(
                 self.queue.raw(),
                 dim("n", n)?,
                 x.raw(),
@@ -745,12 +785,12 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
     /// # Errors
     ///
     /// As [`Scope::dot`].
-    pub fn nrm2<T: Scalar>(
+    pub fn nrm2<T: BlasElement>(
         &'scope self,
         n: usize,
         x: &impl Operand<T>,
         incx: usize,
-        result: &Write<'scope, T>,
+        result: &Write<'scope, T::Real>,
     ) -> Result<Event<'scope>> {
         let (x, r) = (x.buffer(), &*result.buf);
         check_vec("x", x.len(), n, incx)?;
@@ -758,7 +798,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         distinct(r, "result", x, "x")?;
         // SAFETY: as `dot`.
         let raw = unsafe {
-            T::nrm2_async(
+            T::nrm2_raw_async(
                 self.queue.raw(),
                 dim("n", n)?,
                 x.raw(),
@@ -776,12 +816,12 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
     /// # Errors
     ///
     /// As [`Scope::dot`].
-    pub fn asum<T: Scalar>(
+    pub fn asum<T: BlasElement>(
         &'scope self,
         n: usize,
         x: &impl Operand<T>,
         incx: usize,
-        result: &Write<'scope, T>,
+        result: &Write<'scope, T::Real>,
     ) -> Result<Event<'scope>> {
         let (x, r) = (x.buffer(), &*result.buf);
         check_vec("x", x.len(), n, incx)?;
@@ -789,7 +829,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         distinct(r, "result", x, "x")?;
         // SAFETY: as `dot`.
         let raw = unsafe {
-            T::asum_async(
+            T::asum_raw_async(
                 self.queue.raw(),
                 dim("n", n)?,
                 x.raw(),
@@ -807,7 +847,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
     /// # Errors
     ///
     /// As [`Scope::dot`].
-    pub fn iamax<T: Scalar>(
+    pub fn iamax<T: BlasElement>(
         &'scope self,
         n: usize,
         x: &impl Operand<T>,
@@ -820,7 +860,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         distinct(r, "result", x, "x")?;
         // SAFETY: as `dot`.
         let raw = unsafe {
-            T::iamax_async(
+            T::iamax_raw_async(
                 self.queue.raw(),
                 dim("n", n)?,
                 x.raw(),
@@ -840,7 +880,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
     /// [`Error::InvalidArgument`] if an extent does not fit or `y` is the same buffer as `a` or
     /// `x`; submission errors as for [`Scope::gemm`].
     #[allow(clippy::too_many_arguments)]
-    pub fn gemv<T: Scalar>(
+    pub fn gemv<T: BlasElement>(
         &'scope self,
         trans: Transpose,
         m: usize,
@@ -867,7 +907,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         distinct(y, "y", x, "x")?;
         // SAFETY: as `axpy`.
         let raw = unsafe {
-            T::gemv_async(
+            T::gemv_raw_async(
                 self.queue.raw(),
                 trans.code(),
                 dim("m", m)?,

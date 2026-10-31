@@ -586,6 +586,240 @@ mod ffi {
             deps: *const *mut c_void,
             n_deps: i64,
         ) -> *mut c_void;
+        /// Complex level 1 and `gemv` (`c` single, `z` double), non-blocking. Complex data is
+        /// interleaved (re, im); complex scalars are passed by POINTER to two reals; `dotu`/`dotc`
+        /// write a complex result through a pointer to two reals; `nrm2`/`asum` of complex data
+        /// write a REAL; `iamax` writes a zero-based `i64`. Each returns the event, or null.
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_caxpy_async(
+            q: *mut c_void,
+            n: i64,
+            alpha: *const f32,
+            x: *const f32,
+            incx: i64,
+            y: *mut f32,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_cscal_async(
+            q: *mut c_void,
+            n: i64,
+            alpha: *const f32,
+            x: *mut f32,
+            incx: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_ccopy_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            y: *mut f32,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_cswap_async(
+            q: *mut c_void,
+            n: i64,
+            x: *mut f32,
+            incx: i64,
+            y: *mut f32,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_cdotu_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            y: *const f32,
+            incy: i64,
+            result: *mut f32,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_cdotc_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            y: *const f32,
+            incy: i64,
+            result: *mut f32,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_cnrm2_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            result: *mut f32,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_casum_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            result: *mut f32,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_ciamax_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            result: *mut i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_cgemv_async(
+            q: *mut c_void,
+            trans: i32,
+            m: i64,
+            n: i64,
+            alpha: *const f32,
+            a: *const f32,
+            lda: i64,
+            x: *const f32,
+            incx: i64,
+            beta: *const f32,
+            y: *mut f32,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_zaxpy_async(
+            q: *mut c_void,
+            n: i64,
+            alpha: *const f64,
+            x: *const f64,
+            incx: i64,
+            y: *mut f64,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_zscal_async(
+            q: *mut c_void,
+            n: i64,
+            alpha: *const f64,
+            x: *mut f64,
+            incx: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_zcopy_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            y: *mut f64,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_zswap_async(
+            q: *mut c_void,
+            n: i64,
+            x: *mut f64,
+            incx: i64,
+            y: *mut f64,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_zdotu_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            y: *const f64,
+            incy: i64,
+            result: *mut f64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_zdotc_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            y: *const f64,
+            incy: i64,
+            result: *mut f64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_znrm2_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            result: *mut f64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_zasum_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            result: *mut f64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_ziamax_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            result: *mut i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_zgemv_async(
+            q: *mut c_void,
+            trans: i32,
+            m: i64,
+            n: i64,
+            alpha: *const f64,
+            a: *const f64,
+            lda: i64,
+            x: *const f64,
+            incx: i64,
+            beta: *const f64,
+            y: *mut f64,
+            incy: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
         /// Diagnostic: how many oneMKL calls have entered the shim's lock path. A test uses it to
         /// prove no oneMKL-calling function bypasses the lock. `-1` in a build without the shim.
         pub fn bf_mkl_lock_acquisitions() -> i64;
@@ -1377,6 +1611,296 @@ mod stub {
         _beta: *const f64,
         _c: *mut f64,
         _ldc: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_caxpy_async(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: *const f32,
+        _x: *const f32,
+        _incx: i64,
+        _y: *mut f32,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_cscal_async(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: *const f32,
+        _x: *mut f32,
+        _incx: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_ccopy_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _y: *mut f32,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_cswap_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *mut f32,
+        _incx: i64,
+        _y: *mut f32,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_cdotu_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _y: *const f32,
+        _incy: i64,
+        _result: *mut f32,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_cdotc_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _y: *const f32,
+        _incy: i64,
+        _result: *mut f32,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_cnrm2_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _result: *mut f32,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_casum_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _result: *mut f32,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_ciamax_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _result: *mut i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_cgemv_async(
+        _q: *mut c_void,
+        _trans: i32,
+        _m: i64,
+        _n: i64,
+        _alpha: *const f32,
+        _a: *const f32,
+        _lda: i64,
+        _x: *const f32,
+        _incx: i64,
+        _beta: *const f32,
+        _y: *mut f32,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_zaxpy_async(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: *const f64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *mut f64,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_zscal_async(
+        _q: *mut c_void,
+        _n: i64,
+        _alpha: *const f64,
+        _x: *mut f64,
+        _incx: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_zcopy_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *mut f64,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_zswap_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *mut f64,
+        _incx: i64,
+        _y: *mut f64,
+        _incy: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_zdotu_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *const f64,
+        _incy: i64,
+        _result: *mut f64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_zdotc_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *const f64,
+        _incy: i64,
+        _result: *mut f64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_znrm2_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _result: *mut f64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_zasum_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _result: *mut f64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_ziamax_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _result: *mut i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_zgemv_async(
+        _q: *mut c_void,
+        _trans: i32,
+        _m: i64,
+        _n: i64,
+        _alpha: *const f64,
+        _a: *const f64,
+        _lda: i64,
+        _x: *const f64,
+        _incx: i64,
+        _beta: *const f64,
+        _y: *mut f64,
+        _incy: i64,
         _deps: *const *mut c_void,
         _n_deps: i64,
     ) -> *mut c_void {
