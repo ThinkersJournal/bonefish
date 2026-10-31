@@ -4,7 +4,7 @@
 
 - `bonefish`: a one-time, per-process **warm-up** (`src/warmup.rs`). The first `Queue` created in a process runs one tiny call of each BLAS routine family (level 1, `gemv`, `gemm`; `f32`, `f64`, `Complex<f32>`, `Complex<f64>`) serially; other threads creating a queue wait for it. Failures are ignored on purpose (a warm-up must never turn a working queue into an error). `BONEFISH_NO_WARMUP=1` skips it. Why: on Windows, different oneMKL routines running for the first time on parallel threads crashed about 1 run in 10 (ROADMAP R12). **This is a guard, not a fix: the mechanism is not shown and R12 stays open.** Cost: a few milliseconds on a CPU device; on a GPU queue it also pays first-call kernel setup up front (not measured).
 - Tests: `complex_blas` no longer warms up by itself, so it exercises the library guard: 0 crashes in 150 runs with the guard (Windows, oneAPI 2026.1, CPU device); with `BONEFISH_NO_WARMUP=1` (control, same binary, same session) 18 of 150 runs ended non-zero without a test failure (17 crashes plus one run that hung for 16 minutes at 0.4 s CPU and was killed by hand; a hang is the same unexplained family as ROADMAP R8).
-- Docs: `docs/INTEL-REPORT-DRAFT.md` gains finding 4 (the delay-load failure; no standalone reproducer yet). Still a DRAFT; nothing sent.
+- Docs: `docs/R12-DELAY-LOAD-NOTE.md` (internal) records the delay-load failure; it is NOT in the Intel report (no standalone reproducer yet; PM ruling).
 - Not verified: any GPU, Linux locally, other oneMKL releases, DFT routines (not warmed up; no evidence they are affected).
 - Version number is a placeholder for the PM (stacks after 0.0.23).
 
