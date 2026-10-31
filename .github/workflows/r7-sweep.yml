@@ -1,0 +1,30 @@
+name: r7-sweep
+
+# ROADMAP R7: float unary-math accuracy under each floating-point flag set on a GitHub-hosted Linux
+# runner (CPU device). Manual; not a required check. The runner CPU is assigned at random, so the
+# log names it.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep-linux:
+    name: r7-sweep (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install oneAPI from Intel's apt repository
+        run: |
+          wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-runtime-opencl
+      - name: Runner CPU
+        run: lscpu | grep -E "Model name|Vendor"
+      - name: Sweep
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          bash docs/r7/run.sh
