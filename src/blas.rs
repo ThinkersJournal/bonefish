@@ -128,6 +128,213 @@ pub fn gemm<T: Scalar>(
     Queue::status(rc)
 }
 
+// Blocking level 1 and gemv. Each is "submit on a scope, wait": the validation, the submission
+// chain and the collection of asynchronous errors are the scope's (see `crate::scope`), so there is
+// one implementation of each. Consequence worth knowing: unlike `gemm` above, which calls the
+// shim's blocking entry point, these report an asynchronous error the way `Queue::scope` does, and
+// that report can arrive from a later wait on the same queue (documented on `Queue::scope`).
+
+/// `y = alpha * x + y` on `n` elements at strides `incx` and `incy` (both at least 1). Blocking.
+///
+/// # Errors
+///
+/// [`Error::InvalidArgument`] if an extent does not fit its buffer; [`Error::QueueMismatch`] if a
+/// buffer belongs to another queue; device errors.
+pub fn axpy<T: Scalar>(
+    queue: &Queue,
+    n: usize,
+    alpha: T,
+    x: &UsmBuffer<T>,
+    incx: usize,
+    y: &mut UsmBuffer<T>,
+    incy: usize,
+) -> Result<()> {
+    check_same_queue(queue, &[x.queue(), y.queue()])?;
+    queue.scope(|s| {
+        let (x, y) = (s.read(x)?, s.write(y)?);
+        s.axpy(n, alpha, &x, incx, &y, incy)?;
+        Ok(())
+    })
+}
+
+/// `x = alpha * x`. Blocking.
+///
+/// # Errors
+///
+/// As [`axpy`].
+pub fn scal<T: Scalar>(
+    queue: &Queue,
+    n: usize,
+    alpha: T,
+    x: &mut UsmBuffer<T>,
+    incx: usize,
+) -> Result<()> {
+    check_same_queue(queue, &[x.queue()])?;
+    queue.scope(|s| {
+        let x = s.write(x)?;
+        s.scal(n, alpha, &x, incx)?;
+        Ok(())
+    })
+}
+
+/// `y = x`. Blocking.
+///
+/// # Errors
+///
+/// As [`axpy`].
+pub fn copy<T: Scalar>(
+    queue: &Queue,
+    n: usize,
+    x: &UsmBuffer<T>,
+    incx: usize,
+    y: &mut UsmBuffer<T>,
+    incy: usize,
+) -> Result<()> {
+    check_same_queue(queue, &[x.queue(), y.queue()])?;
+    queue.scope(|s| {
+        let (x, y) = (s.read(x)?, s.write(y)?);
+        s.copy(n, &x, incx, &y, incy)?;
+        Ok(())
+    })
+}
+
+/// Exchange `x` and `y`. Blocking.
+///
+/// # Errors
+///
+/// As [`axpy`].
+pub fn swap<T: Scalar>(
+    queue: &Queue,
+    n: usize,
+    x: &mut UsmBuffer<T>,
+    incx: usize,
+    y: &mut UsmBuffer<T>,
+    incy: usize,
+) -> Result<()> {
+    check_same_queue(queue, &[x.queue(), y.queue()])?;
+    queue.scope(|s| {
+        let (x, y) = (s.write(x)?, s.write(y)?);
+        s.swap(n, &x, incx, &y, incy)?;
+        Ok(())
+    })
+}
+
+/// `x . y`. Blocking.
+///
+/// # Errors
+///
+/// As [`axpy`].
+pub fn dot<T: Scalar>(
+    queue: &Queue,
+    n: usize,
+    x: &UsmBuffer<T>,
+    incx: usize,
+    y: &UsmBuffer<T>,
+    incy: usize,
+) -> Result<T> {
+    check_same_queue(queue, &[x.queue(), y.queue()])?;
+    let mut result = UsmBuffer::<T>::zeroed(queue, crate::UsmKind::Shared, 1)?;
+    queue.scope(|s| {
+        let (x, y, r) = (s.read(x)?, s.read(y)?, s.write(&mut result)?);
+        s.dot(n, &x, incx, &y, incy, &r)?;
+        Ok(())
+    })?;
+    Ok(result.to_vec()?[0])
+}
+
+/// The 2-norm `||x||`. Blocking.
+///
+/// # Errors
+///
+/// As [`axpy`].
+pub fn nrm2<T: Scalar>(queue: &Queue, n: usize, x: &UsmBuffer<T>, incx: usize) -> Result<T> {
+    check_same_queue(queue, &[x.queue()])?;
+    let mut result = UsmBuffer::<T>::zeroed(queue, crate::UsmKind::Shared, 1)?;
+    queue.scope(|s| {
+        let (x, r) = (s.read(x)?, s.write(&mut result)?);
+        s.nrm2(n, &x, incx, &r)?;
+        Ok(())
+    })?;
+    Ok(result.to_vec()?[0])
+}
+
+/// The 1-norm `sum |x_i|`. Blocking.
+///
+/// # Errors
+///
+/// As [`axpy`].
+pub fn asum<T: Scalar>(queue: &Queue, n: usize, x: &UsmBuffer<T>, incx: usize) -> Result<T> {
+    check_same_queue(queue, &[x.queue()])?;
+    let mut result = UsmBuffer::<T>::zeroed(queue, crate::UsmKind::Shared, 1)?;
+    queue.scope(|s| {
+        let (x, r) = (s.read(x)?, s.write(&mut result)?);
+        s.asum(n, &x, incx, &r)?;
+        Ok(())
+    })?;
+    Ok(result.to_vec()?[0])
+}
+
+/// Zero-based index of the first element of largest magnitude. Blocking.
+///
+/// # Errors
+///
+/// As [`axpy`]; also [`Error::InvalidArgument`] if `n` is zero (no element to choose).
+pub fn iamax<T: Scalar>(queue: &Queue, n: usize, x: &UsmBuffer<T>, incx: usize) -> Result<usize> {
+    if n == 0 {
+        return Err(Error::InvalidArgument(
+            "iamax of zero elements has no answer".into(),
+        ));
+    }
+    check_same_queue(queue, &[x.queue()])?;
+    let mut result = UsmBuffer::<i64>::zeroed(queue, crate::UsmKind::Shared, 1)?;
+    queue.scope(|s| {
+        let (x, r) = (s.read(x)?, s.write(&mut result)?);
+        s.iamax(n, &x, incx, &r)?;
+        Ok(())
+    })?;
+    let index = result.to_vec()?[0];
+    usize::try_from(index)
+        .ok()
+        .filter(|i| *i < n)
+        .ok_or_else(|| Error::Other(format!("iamax returned {index} for {n} elements")))
+}
+
+/// `y = alpha * op(A) * x + beta * y`, `A` is `m x n` column-major. Blocking.
+///
+/// # Errors
+///
+/// As [`axpy`].
+#[allow(clippy::too_many_arguments)]
+pub fn gemv<T: Scalar>(
+    queue: &Queue,
+    trans: Transpose,
+    m: usize,
+    n: usize,
+    alpha: T,
+    a: &UsmBuffer<T>,
+    lda: usize,
+    x: &UsmBuffer<T>,
+    incx: usize,
+    beta: T,
+    y: &mut UsmBuffer<T>,
+    incy: usize,
+) -> Result<()> {
+    check_same_queue(queue, &[a.queue(), x.queue(), y.queue()])?;
+    queue.scope(|s| {
+        let (a, x, y) = (s.read(a)?, s.read(x)?, s.write(y)?);
+        s.gemv(trans, m, n, alpha, &a, lda, &x, incx, beta, &y, incy)?;
+        Ok(())
+    })
+}
+
+fn check_same_queue(queue: &Queue, buffers: &[&Queue]) -> Result<()> {
+    if buffers.iter().all(|q| queue.same_as(q)) {
+        Ok(())
+    } else {
+        Err(Error::QueueMismatch)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

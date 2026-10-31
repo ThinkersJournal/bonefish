@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.14
+
+- `bonefish::blas`: blocking safe wrappers for level 1 and `gemv`, `f32` and `f64` (R3): `axpy`, `scal`, `copy`, `swap`, `dot`, `nrm2`, `asum`, `iamax` (zero-based, an error for `n = 0`) and `gemv`. Each is "submit on a `Queue::scope`, wait", so the bounds checks, the output-is-not-an-input refusal, the submission chain and the collection of asynchronous errors are the scope's, with one implementation of each. Scalar results (`dot`, `nrm2`, `asum`, `iamax`) are returned as values.
+- Consequence, stated so nobody is surprised: these report an asynchronous device error the way `Queue::scope` does (collected at the wait, and rarely delivered by a later wait on the same queue, see `Queue::scope`), whereas the older blocking `blas::gemm`, `Dft::forward*` and `UsmBuffer::copy_from_slice`/`to_vec` call the shim's blocking entry points, which wait with `wait()`. Measured for `bf_memcpy` (3 of 3 runs, `a_blocking_call_behind_a_failing_task_does_not_report_its_error`): a failing task submitted just before it is waited for, the call returns success, and the error stays in the queue's store until a later wait that collects it. The other blocking entry points share the same `wait()` but were not measured individually (ROADMAP R3d). Not changed in this release.
+- Tests: `tests/blas_blocking.rs` (hand-computed answers for all nine in both precisions, strided `x`, transposed `gemv`; refusals: short buffer, zero increment, a buffer or queue mismatch, `iamax` of nothing; the refused calls leave their buffers untouched). CPU/OpenCL device only; GPU UNVERIFIED.
+- Version number is a placeholder for the PM (stacks after 0.0.13).
+
 ## 0.0.13
 
 - `bonefish`: scoped non-blocking level 1 (`axpy`, `scal`, `copy`, `swap`, `dot`, `nrm2`, `asum`, `iamax`), `gemv` and DFT (`Scope::plan` binds a `Dft` with a shared borrow; `dft_forward`/`dft_backward`, in place and out of place) on `Scope`, for `f32` and `f64` (R3c step 3). Vector increments must be at least 1. Refusals before anything is submitted: a buffer too short for its extent, a zero increment, a result buffer that is empty, an output that is the same buffer as an input, a plan of the wrong placement, a plan or buffer from another queue. `i64` is now an `Element` (the index `iamax` writes).
