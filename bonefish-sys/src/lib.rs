@@ -189,6 +189,9 @@ mod ffi {
             y: *mut f64,
             incy: i64,
         ) -> i32;
+        /// Diagnostic: how many oneMKL calls have entered the shim's lock path. A test uses it to
+        /// prove no oneMKL-calling function bypasses the lock. `-1` in a build without the shim.
+        pub fn bf_mkl_lock_acquisitions() -> i64;
         /// Message of the last failure on this thread.
         pub fn bf_last_error() -> *const c_char;
     }
@@ -512,6 +515,10 @@ mod stub {
         _incy: i64,
     ) -> i32 {
         STATUS_UNAVAILABLE
+    }
+
+    pub unsafe extern "C" fn bf_mkl_lock_acquisitions() -> i64 {
+        -1
     }
 
     pub unsafe extern "C" fn bf_last_error() -> *const c_char {

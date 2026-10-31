@@ -46,7 +46,7 @@ std::unique_ptr<Desc> make(sycl::queue &q, int64_t ndim, const int64_t *lengths,
 BF_API void *bf_dft_c2c_new(void *q, int32_t prec, int64_t ndim, const int64_t *lengths,
                             int32_t inplace, double fwd_scale, double bwd_scale) {
   Dft *h = nullptr;
-  bf::guard([&] {
+  bf::guard_mkl([&] {
     if (ndim < 1 || lengths == nullptr) throw std::invalid_argument("dft: need at least one length");
     auto p = std::make_unique<Dft>(Dft{bf::Q(q), prec == 1, nullptr, nullptr});
     if (prec == 1) {
@@ -59,12 +59,16 @@ BF_API void *bf_dft_c2c_new(void *q, int32_t prec, int64_t ndim, const int64_t *
   return h;
 }
 
-BF_API void bf_dft_free(void *h) { delete static_cast<Dft *>(h); }
+BF_API void bf_dft_free(void *h) {
+  // The descriptor destructor calls into oneMKL, so it takes the same lock.
+  bf::MklLock lock;
+  delete static_cast<Dft *>(h);
+}
 
 // Blocking transform on USM interleaved complex data. For an in-place descriptor pass out = null
 // (in is overwritten); for an out-of-place one pass both. dir: 0 forward, 1 backward.
 BF_API int32_t bf_dft_compute(void *h, int32_t dir, void *in, void *out) {
-  return bf::guard([&] {
+  return bf::guard_mkl([&] {
     auto *p = static_cast<Dft *>(h);
     bool fwd = dir == 0;
     (p->dbl ? run<DescD, double>(*p->d, fwd, in, out) : run<DescF, float>(*p->f, fwd, in, out))

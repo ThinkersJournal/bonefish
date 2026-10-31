@@ -22,6 +22,32 @@ pub enum Placement {
 
 /// A committed complex-to-complex plan for one shape and precision. Dropping it frees the plan.
 ///
+/// Neither `Send` nor `Sync`. The oneAPI specification says "oneMKL objects in class-based APIs
+/// may not be shared between concurrent host threads unless otherwise specified", and a DFT plan
+/// is such an object; no exception was found, so the type does not claim one. (Moving a plan
+/// to another thread is not "sharing" in that sentence, but the spec does not say it is fine
+/// either, so that is not claimed.) To use one plan per thread, build one on each thread.
+///
+/// Checked by the compiler. The positive control passes (`Queue` is `Send + Sync`); the two
+/// negative ones are pinned to `E0277` ("trait bound not satisfied") so they cannot pass for an
+/// unrelated reason such as a typo:
+///
+/// ```
+/// fn needs_send_sync<T: Send + Sync>() {}
+/// needs_send_sync::<bonefish::Queue>();
+/// needs_send_sync::<bonefish::UsmBuffer<f32>>();
+/// ```
+///
+/// ```compile_fail,E0277
+/// fn needs_sync<T: Sync>() {}
+/// needs_sync::<bonefish::Dft<f32>>();
+/// ```
+///
+/// ```compile_fail,E0277
+/// fn needs_send<T: Send>() {}
+/// needs_send::<bonefish::Dft<f64>>();
+/// ```
+///
 /// `forward` multiplies the result by `fwd_scale` and `backward` by `bwd_scale`; both default
 /// to 1 in oneMKL, so an unnormalised round trip returns `n` times the input. Pass
 /// `bwd_scale = 1.0 / n as f64` for a normalised inverse.

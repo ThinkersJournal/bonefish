@@ -68,7 +68,7 @@ BF_API int32_t bf_memcpy(void *q, void *dst, const void *src, int64_t bytes) {
   BF_API int32_t NAME(void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t k,          \
                       TY alpha, const TY *a, int64_t lda, const TY *b, int64_t ldb, TY beta,     \
                       TY *c, int64_t ldc) {                                                      \
-    return guard([&] {                                                                           \
+    return bf::guard_mkl([&] {                                                                   \
       oneapi::mkl::blas::column_major::gemm(Q(q), T(ta), T(tb), m, n, k, alpha, a, lda, b, ldb,  \
                                             beta, c, ldc)                                        \
           .wait();                                                                               \
@@ -76,6 +76,10 @@ BF_API int32_t bf_memcpy(void *q, void *dst, const void *src, int64_t bytes) {
   }
 BF_GEMM(bf_sgemm, float)
 BF_GEMM(bf_dgemm, double)
+
+// Diagnostic: how many oneMKL calls have entered the lock path (see common.hpp). Lets a test prove
+// that no oneMKL-calling function bypasses the lock.
+BF_API int64_t bf_mkl_lock_acquisitions() { return bf::mkl_lock_acquisitions().load(); }
 
 // Message of the last failure on this thread; valid until the next failing call on it.
 BF_API const char *bf_last_error() { return bf::g_last_error.c_str(); }

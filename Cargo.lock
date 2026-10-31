@@ -4,14 +4,14 @@ version = 4
 
 [[package]]
 name = "bonefish"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "bonefish-sys",
 ]
 
 [[package]]
 name = "bonefish-sycl-emit"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "unpopped",
  "unpopped-vocab",
@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish-sys"
-version = "0.0.8"
+version = "0.0.9"
 
 [[package]]
 name = "cfg-if"
