@@ -23,21 +23,32 @@ struct Inner {
     raw: NonNull<c_void>,
 }
 
-// SAFETY: sharing and moving a queue between threads is sound under the two specification
-// statements this crate relies on, both quoted verbatim:
+// SAFETY: sharing and moving a queue between threads rests on two different things, and the
+// second is NOT the specification:
 //
-// - SYCL 2020 (rev 12), chapter 4 introduction: "All functions defined in this specification are
-//   thread-safe, unless otherwise specified." Section 4.6.5 (queue) reported no exception.
-// - oneAPI specification (oneMKL, "Execution Model > Host Thread Safety", v1.3-rev-1): "All oneMKL
-//   member and non-member functions shall be host thread safe." That covers the non-member BLAS
-//   calls this crate makes on a queue. The same section adds: "oneMKL objects in class-based APIs
-//   may not be shared between concurrent host threads unless otherwise specified." which is why
-//   `Dft` is NOT `Sync` (nor `Send`, conservatively).
+// 1. SYCL calls (queue creation, allocation, copies, free). SYCL 2020 (rev 12), chapter 4
+//    introduction, verbatim: "All functions defined in this specification are thread-safe, unless
+//    otherwise specified." Section 4.6.5 (queue) reported no exception. Tested: four threads
+//    allocating and freeing with shared and per-thread queues passed 25 of 25 runs in a
+//    standalone C++ program (oneAPI 2026.1, Windows, CPU device).
+// 2. oneMKL calls (BLAS, DFT). The oneAPI specification says, verbatim, "All oneMKL member and
+//    non-member functions shall be host thread safe." **The shipped oneMKL did not honour that.**
+//    Measured with oneAPI 2026.1 on Windows, CPU/OpenCL device: concurrent first use of
+//    `gemm` from four threads crashed inside `mkl_sycl_blas.6.dll` in 28 of 40 runs of a
+//    standalone C++ program, and in 15 of 15 fresh-process runs of the Rust threading tests
+//    (exception 0xC06D007F or an access violation); on Linux CI (oneAPI 2026.2) the same tests
+//    hung. So every oneMKL call in the shim takes one process-wide mutex (`bf::MklLock`), which
+//    makes these calls thread-safe by our construction, not by Intel's claim: 15 of 15 and 20 of
+//    20 fresh-process runs pass with it. See `ROADMAP.md` R3b for the full numbers and the A/B.
 //
-// Limits, stated rather than hidden: these are specification texts, read through a summariser
-// and cross-checked by a second search; Intel's own developer-reference pages for the shipped
-// product were searched and no product-level statement was found. `ROADMAP.md` (R3b) has the
-// detail, and `tests/threads.rs` exercises concurrent use without proving it.
+// The spec also says "oneMKL objects in class-based APIs may not be shared between concurrent host
+// threads unless otherwise specified", and `Dft` stays neither `Send` nor `Sync` until a test of
+// sharing one plan says otherwise (the lock serialises the calls, which is not the same as having
+// shown that sharing a plan is sound).
+//
+// Limits: spec texts were read through a summariser and cross-checked by a second search; no
+// Intel product-level thread-safety statement was found; the stress results are CPU-device only
+// and no GPU has run any of this.
 unsafe impl Send for Inner {}
 // SAFETY: as above.
 unsafe impl Sync for Inner {}
@@ -54,11 +65,15 @@ impl Drop for Inner {
 /// and the last buffer or plan made from it are dropped.
 ///
 /// `Send + Sync`: one queue may be shared by several host threads, which may each allocate, copy
-/// and call [`blas::gemm`](crate::blas::gemm) on it. That rests on the SYCL 2020 and oneAPI
-/// (oneMKL) **specification** statements quoted at the `unsafe impl` in the source. Whether the
-/// shipped oneMKL (2026.1 was the one used here) conforms to the specification on this point is
-/// **unverified**: no product-level statement was found, and the multi-threaded tests are
-/// evidence, not proof. See `ROADMAP.md` R3b. A [`Dft`](crate::Dft) made from a queue is not
+/// and call [`blas::gemm`](crate::blas::gemm) on it.
+///
+/// Read this before relying on it. The oneAPI specification promises that oneMKL calls are host
+/// thread safe, and the shipped oneMKL tested here (2026.1, Windows, CPU device) is **not**: its
+/// first concurrent use crashes. This crate therefore serialises every oneMKL call behind one
+/// process-wide lock, so oneMKL calls from different threads take turns (SYCL allocation and
+/// copies still run concurrently). The thread-safety of those calls is the lock's, not Intel's.
+/// Details, numbers and the unverified parts (any GPU, other oneMKL releases) are in the source
+/// comment above and in `ROADMAP.md` R3b. A [`Dft`](crate::Dft) made from a queue is not
 /// shareable between threads.
 #[derive(Clone)]
 pub struct Queue(Arc<Inner>);
