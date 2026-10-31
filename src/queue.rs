@@ -126,7 +126,11 @@ impl Queue {
     /// Wrap a queue handle a `bf_queue_new*` call returned, or turn its failure into an error.
     pub(crate) fn from_raw(raw: *mut c_void, profiling: bool) -> Result<Queue> {
         match NonNull::new(raw) {
-            Some(raw) => Ok(Queue(Arc::new(Inner { raw, profiling }))),
+            Some(raw) => {
+                let queue = Queue(Arc::new(Inner { raw, profiling }));
+                crate::warmup::once(&queue);
+                Ok(queue)
+            }
             None if !sys::SYCL_AVAILABLE => Err(Error::Unavailable(last_message())),
             None => Err(Error::Sycl(last_message())),
         }

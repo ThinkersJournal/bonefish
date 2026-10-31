@@ -33,6 +33,7 @@ mod rdft;
 mod scalar;
 mod scope;
 mod usm;
+mod warmup;
 
 pub use blas::Transpose;
 pub use device::{DeviceInfo, DeviceType, find_by_pci_address, find_by_uuid};

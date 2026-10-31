@@ -1,6 +1,6 @@
 # Draft report for Intel: oneMKL SYCL BLAS crashes on concurrent first use from several host threads
 
-This draft holds three findings about the oneMKL SYCL interface, each with its own standalone reproducer: **finding 1** (below) concurrent first use of `gemm` from several host threads crashes; **finding 2** on an in-order queue, `dot` does not wait for the oneMKL call submitted before it; **finding 3** (the last section) committing a DFT descriptor of length 0 kills the process on Intel Xeon CPUs instead of throwing.
+This draft holds four findings about the oneMKL SYCL interface, each with its own standalone reproducer: **finding 1** (below) concurrent first use of `gemm` from several host threads crashes; **finding 2** on an in-order queue, `dot` does not wait for the oneMKL call submitted before it; **finding 3** (the last section) committing a DFT descriptor of length 0 kills the process on Intel Xeon CPUs instead of throwing; **finding 4** (the very last section) a delay-load failure inside `mkl_sycl_blas` when different BLAS routines run for the first time on parallel threads (Windows; no standalone reproducer yet).
 
 Status: **DRAFT, not sent.** Bonefish lane, 2026-10-31. Sending anything outside the portfolio is the PM's and CireSnave's call; this file exists so that call can be made from one page. No secrets, no private paths. Everything below was measured; what was not measured is listed at the end.
 
@@ -159,3 +159,36 @@ The same crash was first found through a Rust test that creates a descriptor of 
 ## Mitigation in use
 
 Bonefish refuses a DFT length below 1 itself, before it reaches oneMKL (`bonefish-sys/shim/dft.cpp`), and its test checks that the refusal is its own, not oneMKL's.
+
+# Finding 4: delay-load failure inside `mkl_sycl_blas.6.dll` when different BLAS routines first run on parallel threads (Windows; possibly the same cause as finding 1)
+
+## Summary
+
+On Windows, oneAPI 2026.1, CPU (OpenCL) device, a test binary whose 8 tests each call a different set of oneMKL SYCL BLAS routines (complex level 1 and `gemv`, single and double precision) crashed in 11 runs of 100 when the tests ran on parallel threads, each thread with its own queue. Exit code 0xc0000005. Intel's banner "PLEASE submit a bug report" followed by `Exception Code: 0xC06D007F`.
+
+## What was observed (vectored exception handler, first non-C++ exception, Windows)
+
+- `0xC06D007F` (delay-load "procedure not found") raised from `mkl_sycl_blas.6.dll`, naming DLL `mkl_tbb_thread.3.dll` and procedure `mkl_serv_verbose_mode`. Both DLLs are present in the oneAPI `mkl\latestin` directory used.
+- Then an access violation **executing** an address that belongs to no loaded module, on another thread, with `sycl9.dll` frames on the stack.
+- No test had finished when it happened (the crash is in the first moments, which is why it looks like a cold-start problem).
+
+## Results
+
+| Condition (same test binary) | Crashes / runs |
+|---|---|
+| default parallel test threads | 11 / 100 (earlier batches 4 to 12 / 100) |
+| `RUST_TEST_THREADS=1` | 0 / 100 |
+| every routine run once serially before the parallel part | 0 / 100 |
+| our wrapper serialising every call into oneMKL (one process-wide lock around submit) | 4 / 100 vs 8 / 100 baseline |
+| the same, also waiting for each call to complete inside the lock | 7 / 100 vs 4 / 100 baseline |
+
+## What this does and does not show
+
+- Shown: the crash depends on different routines running cold on parallel threads; serial first use removes it.
+- Not shown: the mechanism. Serialising our own calls did not remove it, so it is not simply two host threads inside oneMKL submit at the same time. It may be the same cause as finding 1 (the Windows signature there is also a crash on concurrent first use); that has not been checked.
+- **No standalone reproducer.** A minimal C++/C probe (4 and 8 threads, cold, all ten complex routines) did not crash in 40 to 60 runs; only the larger Rust test binary does. Writing one is open.
+- Not measured: Linux (the same test passed once on an AMD EPYC runner; one run proves nothing), any GPU, other oneMKL releases.
+
+## Mitigation in use
+
+Bonefish runs one tiny call of each BLAS routine family once, serially, when the first queue of the process is created (`src/warmup.rs`; `BONEFISH_NO_WARMUP=1` turns it off). It is a guard; the mechanism is not shown and ROADMAP R12 stays open.
