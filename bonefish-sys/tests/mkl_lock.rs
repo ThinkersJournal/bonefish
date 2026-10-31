@@ -218,6 +218,10 @@ mod counter {
         let (d, ()) = moved(|| unsafe { bf_dft_free(h) });
         seen.push("bf_dft_free");
         assert_eq!(d, 1, "bf_dft_free moved the counter by {d}, not 1");
+        // `data` frees its USM through the queue, so it must go before the queue does. Left to
+        // drop at the end of the function it ran after `bf_queue_free(q)`: a use after free that
+        // Windows tolerated and the Linux CI run turned into SIGSEGV.
+        drop(data);
 
         // The exercised list must be exactly the classified list (no function silently skipped).
         let exercised: BTreeSet<&str> = seen.iter().copied().collect();
