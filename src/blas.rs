@@ -3,7 +3,7 @@
 
 use crate::error::{Error, Result};
 use crate::queue::Queue;
-use crate::scalar::{GemmElement, Scalar};
+use crate::scalar::{BlasElement, GemmElement};
 use crate::usm::UsmBuffer;
 
 /// How a matrix operand is used. For real types `ConjTrans` is the same as `Trans`.
@@ -140,7 +140,7 @@ pub fn gemm<T: GemmElement>(
 ///
 /// [`Error::InvalidArgument`] if an extent does not fit its buffer; [`Error::QueueMismatch`] if a
 /// buffer belongs to another queue; device errors.
-pub fn axpy<T: Scalar>(
+pub fn axpy<T: BlasElement>(
     queue: &Queue,
     n: usize,
     alpha: T,
@@ -162,7 +162,7 @@ pub fn axpy<T: Scalar>(
 /// # Errors
 ///
 /// As [`axpy`].
-pub fn scal<T: Scalar>(
+pub fn scal<T: BlasElement>(
     queue: &Queue,
     n: usize,
     alpha: T,
@@ -182,7 +182,7 @@ pub fn scal<T: Scalar>(
 /// # Errors
 ///
 /// As [`axpy`].
-pub fn copy<T: Scalar>(
+pub fn copy<T: BlasElement>(
     queue: &Queue,
     n: usize,
     x: &UsmBuffer<T>,
@@ -203,7 +203,7 @@ pub fn copy<T: Scalar>(
 /// # Errors
 ///
 /// As [`axpy`].
-pub fn swap<T: Scalar>(
+pub fn swap<T: BlasElement>(
     queue: &Queue,
     n: usize,
     x: &mut UsmBuffer<T>,
@@ -219,12 +219,13 @@ pub fn swap<T: Scalar>(
     })
 }
 
-/// `x . y`. Blocking.
+/// `x . y`, the plain (unconjugated) product `sum x_i * y_i`; for complex data BLAS `dotu`.
+/// Blocking. See [`dotc`] for the conjugated one.
 ///
 /// # Errors
 ///
 /// As [`axpy`].
-pub fn dot<T: Scalar>(
+pub fn dot<T: BlasElement>(
     queue: &Queue,
     n: usize,
     x: &UsmBuffer<T>,
@@ -242,14 +243,42 @@ pub fn dot<T: Scalar>(
     Ok(result.to_vec()?[0])
 }
 
+/// `conj(x) . y`, the conjugated dot product. Blocking. For real data this is [`dot`].
+///
+/// # Errors
+///
+/// As [`axpy`].
+pub fn dotc<T: BlasElement>(
+    queue: &Queue,
+    n: usize,
+    x: &UsmBuffer<T>,
+    incx: usize,
+    y: &UsmBuffer<T>,
+    incy: usize,
+) -> Result<T> {
+    check_same_queue(queue, &[x.queue(), y.queue()])?;
+    let mut result = UsmBuffer::<T>::zeroed(queue, crate::UsmKind::Shared, 1)?;
+    queue.scope(|s| {
+        let (x, y, r) = (s.read(x)?, s.read(y)?, s.write(&mut result)?);
+        s.dotc(n, &x, incx, &y, incy, &r)?;
+        Ok(())
+    })?;
+    Ok(result.to_vec()?[0])
+}
+
 /// The 2-norm `||x||`. Blocking.
 ///
 /// # Errors
 ///
 /// As [`axpy`].
-pub fn nrm2<T: Scalar>(queue: &Queue, n: usize, x: &UsmBuffer<T>, incx: usize) -> Result<T> {
+pub fn nrm2<T: BlasElement>(
+    queue: &Queue,
+    n: usize,
+    x: &UsmBuffer<T>,
+    incx: usize,
+) -> Result<T::Real> {
     check_same_queue(queue, &[x.queue()])?;
-    let mut result = UsmBuffer::<T>::zeroed(queue, crate::UsmKind::Shared, 1)?;
+    let mut result = UsmBuffer::<T::Real>::zeroed(queue, crate::UsmKind::Shared, 1)?;
     queue.scope(|s| {
         let (x, r) = (s.read(x)?, s.write(&mut result)?);
         s.nrm2(n, &x, incx, &r)?;
@@ -263,9 +292,14 @@ pub fn nrm2<T: Scalar>(queue: &Queue, n: usize, x: &UsmBuffer<T>, incx: usize) -
 /// # Errors
 ///
 /// As [`axpy`].
-pub fn asum<T: Scalar>(queue: &Queue, n: usize, x: &UsmBuffer<T>, incx: usize) -> Result<T> {
+pub fn asum<T: BlasElement>(
+    queue: &Queue,
+    n: usize,
+    x: &UsmBuffer<T>,
+    incx: usize,
+) -> Result<T::Real> {
     check_same_queue(queue, &[x.queue()])?;
-    let mut result = UsmBuffer::<T>::zeroed(queue, crate::UsmKind::Shared, 1)?;
+    let mut result = UsmBuffer::<T::Real>::zeroed(queue, crate::UsmKind::Shared, 1)?;
     queue.scope(|s| {
         let (x, r) = (s.read(x)?, s.write(&mut result)?);
         s.asum(n, &x, incx, &r)?;
@@ -279,7 +313,12 @@ pub fn asum<T: Scalar>(queue: &Queue, n: usize, x: &UsmBuffer<T>, incx: usize) -
 /// # Errors
 ///
 /// As [`axpy`]; also [`Error::InvalidArgument`] if `n` is zero (no element to choose).
-pub fn iamax<T: Scalar>(queue: &Queue, n: usize, x: &UsmBuffer<T>, incx: usize) -> Result<usize> {
+pub fn iamax<T: BlasElement>(
+    queue: &Queue,
+    n: usize,
+    x: &UsmBuffer<T>,
+    incx: usize,
+) -> Result<usize> {
     if n == 0 {
         return Err(Error::InvalidArgument(
             "iamax of zero elements has no answer".into(),
@@ -305,7 +344,7 @@ pub fn iamax<T: Scalar>(queue: &Queue, n: usize, x: &UsmBuffer<T>, incx: usize) 
 ///
 /// As [`axpy`].
 #[allow(clippy::too_many_arguments)]
-pub fn gemv<T: Scalar>(
+pub fn gemv<T: BlasElement>(
     queue: &Queue,
     trans: Transpose,
     m: usize,
