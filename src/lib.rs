@@ -2,7 +2,7 @@
 //!
 //! - [`Queue`]: a SYCL queue on one device ([`DeviceKind`]).
 //! - [`UsmBuffer`]: typed unified shared memory owned by a queue.
-//! - [`blas::gemm`]: matrix multiply, `f32` and `f64`; level 1 and `gemv` ([`blas::axpy`],
+//! - [`blas::gemm`]: matrix multiply, `f32`, `f64`, `Complex<f32>` and `Complex<f64>`; level 1 and `gemv` ([`blas::axpy`],
 //!   [`blas::dot`], [`blas::nrm2`], ...), blocking.
 //! - [`Dft`]: complex-to-complex FFTs, `f32` and `f64`, 1-D and N-D.
 //! - [`RealDft`]: real-to-complex and complex-to-real FFTs (half spectrum), `f32` and `f64`, 1-D and
@@ -40,7 +40,7 @@ pub use dft::{Dft, Placement};
 pub use error::{Error, Result};
 pub use queue::{DeviceKind, Queue};
 pub use rdft::RealDft;
-pub use scalar::{Complex, Element, Scalar};
+pub use scalar::{Complex, Element, GemmElement, Scalar};
 pub use scope::{DeviceTime, Event, Operand, Plan, Read, Scope, Write};
 pub use usm::{UsmBuffer, UsmKind};
 
