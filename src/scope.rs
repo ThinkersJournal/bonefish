@@ -162,12 +162,25 @@ impl Queue {
     /// returns (or fails, or panics) the queue is waited on before this function returns, so no
     /// device work outlives the borrows the scope took.
     ///
-    /// Returns `f`'s error if it failed, otherwise the first asynchronous error from the work,
-    /// otherwise `f`'s value.
+    /// Returns `f`'s error if it failed, otherwise the first asynchronous error the queue has
+    /// recorded, otherwise `f`'s value.
     ///
     /// # Errors
     ///
     /// Whatever `f` returns, or an asynchronous error from the submitted work.
+    ///
+    /// # Asynchronous errors can arrive late
+    ///
+    /// The memory guarantee above does not depend on this, but error reporting does: `Ok` is
+    /// **not proof** that the work succeeded. Errors are recorded per queue and reported by the
+    /// first wait that finds them. Measured on Windows (oneAPI 2026.1, CPU device, a failing host
+    /// task forced as the error): with nothing else running, 0 of 150 errors were missed by the
+    /// scope that submitted the work; with four threads each failing on their own queue, about
+    /// 2 to 5 in 100 were not yet posted when that wait returned, and every one of them was
+    /// reported by a later wait on the same queue (66 of 66). So an error can surface from a later
+    /// scope on the same queue. It was never reported on another queue (0 of 9 runs, after a fix:
+    /// an earlier version kept errors per thread and lost about half of them). A failing *kernel*
+    /// was not measured; the forced error is a throwing host task. GPU UNVERIFIED.
     ///
     /// # Examples
     ///
@@ -441,8 +454,13 @@ mod tests {
     use super::*;
     use crate::{DeviceKind, UsmKind};
 
-    /// A scope whose closure returns while the queue holds a throwing host task must report that
-    /// asynchronous error from `scope`, not abort and not swallow it. Needs a device.
+    /// A scope whose closure returns while the queue holds a failing host task must report that
+    /// asynchronous error, not abort and not swallow it. Needs a device.
+    ///
+    /// The error may come from the scope that submitted the work or, rarely, from a later wait on
+    /// the same queue: the runtime can complete the wait slightly before it posts the error
+    /// (measured, `bonefish-sys/tests/async_shim.rs`). So the test polls further empty scopes for
+    /// up to two seconds, and what it requires is that the error arrives, once.
     #[test]
     fn an_asynchronous_error_is_returned_by_scope() {
         if !crate::SYCL_AVAILABLE {
@@ -452,14 +470,19 @@ mod tests {
         let q = Queue::new(DeviceKind::Cpu).expect("a CPU SYCL device");
         // Control: an empty scope is Ok.
         assert!(q.scope(|_| Ok(1)).is_ok());
-        let r: Result<()> = q.scope(|_s| {
+        let mut result: Result<()> = q.scope(|_s| {
             // SAFETY: the queue handle is live; the event is freed below.
             let e = unsafe { sys::bf_test_async_failure(q.raw()) };
             assert!(!e.is_null());
             unsafe { sys::bf_event_free(e) };
             Ok(())
         });
-        match r {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while result.is_ok() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            result = q.scope(|_| Ok(()));
+        }
+        match result {
             Err(Error::Sycl(m)) => assert!(m.contains("forced asynchronous failure"), "{m}"),
             other => panic!("expected the asynchronous SYCL error, got {other:?}"),
         }
