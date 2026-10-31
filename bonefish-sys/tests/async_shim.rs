@@ -273,3 +273,56 @@ fn waiting_on_a_null_event_is_an_error_not_a_crash() {
     let rc = unsafe { bf_event_wait(std::ptr::null_mut()) };
     assert_eq!(rc, 3);
 }
+
+/// Is an asynchronous error still reported when the caller drops the event before waiting on the
+/// queue? The scoped safe API drops events freely, so its "the scope returns the first
+/// asynchronous error" promise depends on the answer. Measured per variant over many fresh
+/// queues; the summary line is printed so a CI log shows which variant lost errors.
+///   A: event kept until after `bf_queue_wait`
+///   B: event freed right after submission, then `bf_queue_wait`
+///   C: as B, with a pause before the wait (separates "lost with the event" from "not yet posted")
+#[test]
+fn asynchronous_error_survives_dropping_the_event_before_the_queue_wait() {
+    watchdog(
+        "asynchronous_error_survives_dropping_the_event",
+        120,
+        || {
+            let _g = serial();
+            const N: usize = 100;
+            let mut lost = [0usize; 3];
+            for i in 0..N {
+                for (variant, slot) in lost.iter_mut().enumerate() {
+                    let q = Queue::new();
+                    let e = unsafe { bf_test_async_failure(q.0) };
+                    assert!(!e.is_null(), "{}", last_error());
+                    if variant != 0 {
+                        unsafe { bf_event_free(e) };
+                    }
+                    if variant == 2 {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
+                    let rc = unsafe { bf_queue_wait(q.0) };
+                    if variant == 0 {
+                        unsafe { bf_event_free(e) };
+                    }
+                    if rc != 1 {
+                        *slot += 1;
+                    }
+                    let _ = i;
+                }
+            }
+            eprintln!(
+                "ASYNC-ERROR-LOSS over {N} fresh queues: A(event kept)={} B(event freed)={} C(freed+50ms)={}",
+                lost[0], lost[1], lost[2]
+            );
+            assert_eq!(
+                lost,
+                [0, 0, 0],
+                "lost errors out of {N}: A(event kept)={} B(event freed)={} C(freed, 50 ms pause)={}",
+                lost[0],
+                lost[1],
+                lost[2]
+            );
+        },
+    );
+}
