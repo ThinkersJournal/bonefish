@@ -30,18 +30,26 @@ jobs:
           bash docs/intel-report/run_all.sh 40
 
   repro-windows:
-    name: intel-repro (windows)
+    name: intel-repro (windows, toolkit ${{ matrix.toolkit }})
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - toolkit: "2026.2.0.661"
+            url: https://registrationcenter-download.intel.com/akdlm/IRC_NAS/728c4418-1b40-47a9-ad51-31530fb27c94/intel-oneapi-toolkit-2026.2.0.661_offline.exe
+          - toolkit: "2026.1.0.191"
+            url: https://registrationcenter-download.intel.com/akdlm/IRC_NAS/4144bec3-82ce-4672-bd71-5c93a79cd5e7/intel-oneapi-toolkit-2026.1.0.191_offline.exe
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Intel's offline toolkit installer, the same URL and command line the oneapi-src/oneapi-ci
-      # repository uses for its Windows jobs (toolkit 2026.2.0.661). Components: the DPC++ compiler
+      # repository uses for its Windows jobs (2026.2.0.661); 2026.1.0.191 is the URL on Intel's install guide. Components: the DPC++ compiler
       # and the oneMKL development files.
       - name: Install oneAPI
         shell: cmd
         run: |
-          curl.exe --output %TEMP%\webimage.exe --url https://registrationcenter-download.intel.com/akdlm/IRC_NAS/728c4418-1b40-47a9-ad51-31530fb27c94/intel-oneapi-toolkit-2026.2.0.661_offline.exe --retry 5 --retry-delay 5
+          curl.exe --output %TEMP%\webimage.exe --url ${{ matrix.url }} --retry 5 --retry-delay 5
           start /b /wait %TEMP%\webimage.exe -s -x -f webimage_extracted --log extract.log
           webimage_extracted\bootstrapper.exe -s --action install --eula=accept --components=intel.oneapi.win.cpp-dpcpp-common:intel.oneapi.win.mkl.devel -p=NEED_VS2022_INTEGRATION=0 --log-dir=.
       - name: Reproducers
