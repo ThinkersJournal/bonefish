@@ -13,8 +13,11 @@
 //! | real | `lengths[0] x ... x lengths[d-1]` |
 //! | complex | `lengths[0] x ... x lengths[d-2] x (lengths[d-1] / 2 + 1)` |
 //!
-//! The shim sets these strides **explicitly**. oneMKL's default real layout pads each row to
-//! `2 * (n_last / 2 + 1)` reals even out of place; relying on it read a dense array with the wrong
+//! The shim sets these strides **explicitly**. oneMKL's default real layout is the one for an
+//! unbatched *in-place* transform, with minimal padding in the real domain (documented: Intel's
+//! oneMKL DPC++ Developer Reference 2026.0, "Configuring data layouts", sections "Configuring
+//! strides in forward and backward domains" and "Data layout requirements"), and it applies even
+//! out of place; relying on it read a dense array with the wrong
 //! row stride (measured, CPU device, oneAPI 2026.1: a delta at element (1, 0) of a 4 x 6 array was
 //! treated as padding and ignored). Out-of-place only; in-place real transforms need padded
 //! storage and are not offered.
