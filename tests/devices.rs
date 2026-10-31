@@ -54,7 +54,8 @@ fn devices_are_listed_with_their_identifying_fields() {
                 u.len() == 32
                     && u.chars()
                         .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
-                "device {i}: UUID {u:?}"
+                "device {i}: malformed UUID (length {}); the value is not printed, it is a hardware identifier",
+                u.len()
             );
         }
         // An offered PCI address is never empty (an empty one would match nothing but invite
@@ -63,11 +64,16 @@ fn devices_are_listed_with_their_identifying_fields() {
             assert!(!p.is_empty(), "device {i}: empty PCI address");
         }
     }
-    // Report what the CPU device offers, so the CI log shows it (not an assertion about it).
+    // Report WHICH fields the CPU device offers, so the CI log shows it, but not their values:
+    // a UUID or PCI address is a hardware identifier and does not belong in a log.
     let c = cpu(&devices);
     eprintln!(
-        "CPU device: {:?} backend {} pci {:?} uuid {:?} intel id {:?}",
-        c.name, c.backend, c.pci_address, c.uuid, c.intel_device_id
+        "CPU device: {:?} backend {}; offers pci address: {}, uuid: {}, intel id: {}",
+        c.name,
+        c.backend,
+        c.pci_address.is_some(),
+        c.uuid.is_some(),
+        c.intel_device_id.is_some()
     );
 }
 
