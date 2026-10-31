@@ -28,3 +28,24 @@ jobs:
         run: |
           source /opt/intel/oneapi/setvars.sh
           bash docs/intel-report/run_all.sh 40
+
+  repro-windows:
+    name: intel-repro (windows)
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Intel's offline toolkit installer, the same URL and command line the oneapi-src/oneapi-ci
+      # repository uses for its Windows jobs (toolkit 2026.2.0.661). Components: the DPC++ compiler
+      # and the oneMKL development files.
+      - name: Install oneAPI
+        shell: cmd
+        run: |
+          curl.exe --output %TEMP%\webimage.exe --url https://registrationcenter-download.intel.com/akdlm/IRC_NAS/728c4418-1b40-47a9-ad51-31530fb27c94/intel-oneapi-toolkit-2026.2.0.661_offline.exe --retry 5 --retry-delay 5
+          start /b /wait %TEMP%\webimage.exe -s -x -f webimage_extracted --log extract.log
+          webimage_extracted\bootstrapper.exe -s --action install --eula=accept --components=intel.oneapi.win.cpp-dpcpp-common:intel.oneapi.win.mkl.devel -p=NEED_VS2022_INTEGRATION=0 --log-dir=.
+      - name: Reproducers
+        shell: cmd
+        run: |
+          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" --force
+          "C:\Program Files\Git\bin\bash.exe" docs/intel-report/run_all.sh 40

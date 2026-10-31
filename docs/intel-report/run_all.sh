@@ -1,24 +1,31 @@
 #!/usr/bin/env bash
 # Builds the three reproducers and runs every measurement in docs/INTEL-REPORT-DRAFT.md, printing
-# one table per finding. Linux, after `source /opt/intel/oneapi/setvars.sh`.
+# one table per finding. Linux after `source /opt/intel/oneapi/setvars.sh`, or Windows in Git Bash
+# started from a oneAPI command prompt (setvars.bat).
 #   usage: run_all.sh [runs_per_cell]      (default 40; each run is a FRESH process)
 # Exit codes of repro: 0 clean, 3 wrong result, 42 watchdog (hang), anything else is a crash.
 set -u
 cd "$(dirname "$0")"
 RUNS="${1:-40}"
+EXE=""
+[ "${OS:-}" = "Windows_NT" ] && EXE=".exe"
 
 echo "== environment"
 uname -srm
-grep PRETTY_NAME /etc/os-release || true
-lscpu | grep -E "Model name|^CPU\(s\)|Vendor"
+if [ -n "$EXE" ]; then
+  powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).Caption + ' ' + (Get-CimInstance Win32_OperatingSystem).Version; (Get-CimInstance Win32_Processor | Select-Object -First 1).Name"
+else
+  grep PRETTY_NAME /etc/os-release || true
+  lscpu | grep -E "Model name|^CPU\(s\)|Vendor"
+fi
 icpx --version | head -1
-grep -E "__INTEL_MKL__|__INTEL_MKL_MINOR__|__INTEL_MKL_UPDATE__" "${MKLROOT:-/opt/intel/oneapi/mkl/latest}/include/mkl_version.h" | head -3
+grep -E "__INTEL_MKL__|__INTEL_MKL_MINOR__|__INTEL_MKL_UPDATE__" "${MKLROOT:-/opt/intel/oneapi/mkl/latest}/include/mkl_version.h" | head -3 || true
 sycl-ls
 
 echo "== build (one command per file)"
-icpx -fsycl -O2 -qmkl=parallel repro.cpp -o repro || exit 1
-icpx -fsycl -O2 -qmkl=parallel repro_order.cpp -o repro_order || exit 1
-icpx -fsycl -O2 -qmkl=parallel repro_dft.cpp -o repro_dft || exit 1
+icpx -fsycl -O2 -qmkl=parallel repro.cpp -o repro$EXE || exit 1
+icpx -fsycl -O2 -qmkl=parallel repro_order.cpp -o repro_order$EXE || exit 1
+icpx -fsycl -O2 -qmkl=parallel repro_dft.cpp -o repro_dft$EXE || exit 1
 
 # cell <label> <command...>: run RUNS fresh processes, tally exit codes.
 cell() {
@@ -38,25 +45,25 @@ cell() {
 }
 
 echo "== finding 1: gemm from 4 threads x 40 rounds, fresh process per run"
-cell "own (cold)"        ./repro own 4 40
-cell "pre"                ./repro pre 4 40
-cell "shared"             ./repro shared 4 40
-cell "own, 1 thread"      ./repro own 1 40
-cell "own, 2 threads"     ./repro own 2 40
-cell "own, alloc only"    ./repro own 4 40 alloc
-cell "shared, alloc only" ./repro shared 4 40 alloc
-cell "locked"             ./repro locked 4 40
-cell "warm1"              ./repro warm1 4 40
-cell "warm"               ./repro warm 4 40
+cell "own (cold)"        ./repro$EXE own 4 40
+cell "pre"                ./repro$EXE pre 4 40
+cell "shared"             ./repro$EXE shared 4 40
+cell "own, 1 thread"      ./repro$EXE own 1 40
+cell "own, 2 threads"     ./repro$EXE own 2 40
+cell "own, alloc only"    ./repro$EXE own 4 40 alloc
+cell "shared, alloc only" ./repro$EXE shared 4 40 alloc
+cell "locked"             ./repro$EXE locked 4 40
+cell "warm1"              ./repro$EXE warm1 4 40
+cell "warm"               ./repro$EXE warm 4 40
 
 echo "== finding 2: in-order queue ordering, 100 rounds per cell (wrong = stale read), 3 runs"
-for i in 1 2 3; do echo "-- run $i"; ./repro_order 100; done
+for i in 1 2 3; do echo "-- run $i"; ./repro_order$EXE 100; done
 
 echo "== finding 3: zero-length DFT (a crash is exit 136 = SIGFPE)"
 for prec in s d; do
   for inplace in 0 1; do
-    ./repro_dft $prec $inplace 0 >/dev/null 2>&1; d=$?
-    MKL_ENABLE_INSTRUCTIONS=AVX2 ./repro_dft $prec $inplace 0 >/dev/null 2>&1; a=$?
+    ./repro_dft$EXE $prec $inplace 0 >/dev/null 2>&1; d=$?
+    MKL_ENABLE_INSTRUCTIONS=AVX2 ./repro_dft$EXE $prec $inplace 0 >/dev/null 2>&1; a=$?
     echo "n=0 precision=$prec inplace=$inplace: default dispatch exit=$d, AVX2 exit=$a"
   done
 done
