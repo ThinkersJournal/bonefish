@@ -3,42 +3,10 @@
 //! device only; nothing here has run on a GPU.
 
 use bonefish::{
-    BlasElement, Complex, DeviceKind, Error, Queue, SYCL_AVAILABLE, Transpose, UsmBuffer, UsmKind,
-    blas,
+    Complex, DeviceKind, Error, Queue, SYCL_AVAILABLE, Transpose, UsmBuffer, UsmKind, blas,
 };
 
 type C = (f64, f64);
-
-/// Run every op once, serially, for one element type.
-///
-/// WORKAROUND, not a fix (ROADMAP R12). Without this, running these tests on parallel threads
-/// crashed 11 runs in 100 on Windows (oneAPI 2026.1, CPU device; 0xC06D007F "procedure not found"
-/// raised by `mkl_sycl_blas.6.dll`'s delay-load of `mkl_tbb_thread.3.dll!mkl_serv_verbose_mode`,
-/// then an access violation executing an address in no module). With every op run once serially
-/// first it was 0 in 100. `RUST_TEST_THREADS=1` also gave 0 in 100. The shim serialising every
-/// call did NOT remove the crash, so the mechanism is not shown; only the cold-start dependence is.
-fn warm<T: BlasElement + Copy>(q: &Queue, one: T) {
-    let v = UsmBuffer::from_slice(q, UsmKind::Shared, &[one; 4]).unwrap();
-    let mut y = UsmBuffer::from_slice(q, UsmKind::Shared, &[one; 4]).unwrap();
-    let mut z = UsmBuffer::from_slice(q, UsmKind::Shared, &[one; 4]).unwrap();
-    blas::axpy(q, 4, one, &v, 1, &mut y, 1).unwrap();
-    blas::scal(q, 4, one, &mut y, 1).unwrap();
-    blas::copy(q, 4, &v, 1, &mut y, 1).unwrap();
-    blas::swap(q, 4, &mut z, 1, &mut y, 1).unwrap();
-    blas::dot(q, 4, &v, 1, &y, 1).unwrap();
-    blas::dotc(q, 4, &v, 1, &y, 1).unwrap();
-    blas::nrm2(q, 4, &v, 1).unwrap();
-    blas::asum(q, 4, &v, 1).unwrap();
-    blas::iamax(q, 4, &v, 1).unwrap();
-    blas::gemv(q, Transpose::No, 2, 2, one, &v, 2, &z, 1, one, &mut y, 1).unwrap();
-}
-fn warm_all(q: &Queue) {
-    static ONCE: std::sync::Once = std::sync::Once::new();
-    ONCE.call_once(|| {
-        warm(q, Complex::new(1.0f64, 0.0));
-        warm(q, Complex::new(1.0f32, 0.0));
-    });
-}
 
 fn queue(test: &str) -> Option<Queue> {
     if !SYCL_AVAILABLE {
@@ -49,9 +17,7 @@ fn queue(test: &str) -> Option<Queue> {
         eprintln!("SKIP {test}: built without oneAPI. Nothing ran on a device.");
         return None;
     }
-    let q = Queue::new(DeviceKind::Cpu).expect("a CPU SYCL device");
-    warm_all(&q);
-    Some(q)
+    Some(Queue::new(DeviceKind::Cpu).expect("a CPU SYCL device"))
 }
 
 /// Deterministic complex values with both parts non-zero and no symmetry.
