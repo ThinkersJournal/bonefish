@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.17
+
+- **Fix: a queue freed right after a wait could terminate the process.** `bf_queue_free` now retires the queue and destroys it only after a grace period (default 2 s, after a `wait_and_throw`), instead of at once. Found as an intermittent Linux CI abort (`async_shim` SIGABRT: SYCL's default async handler printed 'forced asynchronous failure' and called terminate; 5 of 180 looped runs on main). Reproduced on Windows with 4 threads each looping {new queue, failing host task, one wait, free}: destroying at once killed 25 of 25 processes, one thread 0 of 25. Cause: a wait can return before the runtime posts a task's error (R3c); if the queue is gone when the error arrives it goes to the default handler, which terminates. Compared under that probe: destroy at once 0 of 20 survive; wait then destroy at once 0 of 20 (so waiting alone does not help); never destroy 59 of 60; grace 50 ms 20 of 20; grace 2 s 40 of 40.
+- `BONEFISH_UNSAFE_QUEUE_GRACE_MS` sets the grace period for A/B runs (0 reproduces the abort). Retired queues are leaked at process exit on purpose. New test file `bonefish-sys/tests/queue_drop.rs`. ROADMAP R10 has the numbers and the list of what is NOT shown (the real bound of the posting delay; a real failing kernel; Linux in a loop until measured; one unexplained residual in 'never destroy' mode).
+- Cost: a program that frees many queues keeps each alive 2 s longer (memory and device handles, not data).
+- Version number is a placeholder for the PM (stacks after 0.0.16; PR #18 uses the same placeholder and needs the next number after this one).
+
 ## 0.0.16
 
 - Docs only: `docs/FUEL-INTEL-GPU-DESIGN.md` (R5), the Bonefish-side interface proposal for Fuel's ROADMAP row 127 (Intel Arc A770, Fuel's Vulkan path against oneMKL via SYCL). It records Fuel's answers as answers (not measurements), lists the gaps found in the tree and the oneAPI 2026.1 headers (no f16/bf16 `gemm`, no half `gemv` in oneMKL, column-major only, no device enumeration or PCI/UUID matching, no profiling, not on crates.io), states the ordering/error/thread-safety contract including the finding that an in-order queue does not order oneMKL `dot` (Windows, CPU device; Linux not measured), and proposes four small steps and a JSON CLI. No code. Every GPU statement is UNVERIFIED.
