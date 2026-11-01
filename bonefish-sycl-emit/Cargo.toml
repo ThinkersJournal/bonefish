@@ -1,6 +1,6 @@
 [package]
 name = "bonefish-sycl-emit"
-version = "0.0.26"
+version = "0.0.27"
 edition = "2024"
 rust-version = "1.85"
 description = "SYCL/DPC++ backend for the neutral unpopped kernel generator: lowers a KernelPlan to SYCL C++ source."

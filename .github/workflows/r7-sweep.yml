@@ -5,8 +5,6 @@ name: r7-sweep
 # log names it.
 on:
   workflow_dispatch:
-  push:
-    branches: [r7-fastmath]
 
 permissions:
   contents: read
