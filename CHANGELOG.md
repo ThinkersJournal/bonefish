@@ -8,6 +8,7 @@
 - Not done: `nd_range` / `nd_item` kernels (not refused by name; the walkers decide), 2-D or higher ranks, `ResourceMap`-declared names are supported by the shared walker but not tested here, anything on a GPU. Stacked on #29 (unpopped 0.40.0).
 - Version number is a placeholder for the PM (stacks after 0.0.28, which is #29).
 
+
 ## 0.0.28
 
 - `bonefish-sycl-emit`: **unpopped and unpopped-vocab 0.34.11 -> 0.40.0** (exact pins, as before). Unpopped 0.40.0 is Breaking (it adds `Stmt::AtomicRmw`, relaxed, global integer element); the emitter needed no source change because it lowers `KernelPlan`s through `Backend::lower` and never matches `Stmt`. The emitter does not override `Backend::lower_kernel`, so a `KernelFn` with an atomic is **declined** with the typed `LowerError::UnsupportedKernel` (new toolchain-free test `kernel_layer_decline`, for add, max and min; the kernel passes `check_kernel`, so the refusal is the backend's). A kernel-layer path emitting `sycl::atomic_ref` is not built.
