@@ -9,6 +9,9 @@
 //! - Dtypes: `f32` and `f64` ([`Backend::supports_dtype`]). Everything else is a typed decline.
 //! - Schedule: [`Schedule::Scalar`] only (the contiguous, single-output elementwise cell).
 //!   Every other schedule is [`LowerError::UnsupportedSchedule`].
+//! - Kernel layer: none. `Backend::lower_kernel` is not overridden, so any `KernelFn` (including
+//!   unpopped 0.40's `Stmt::AtomicRmw`) is refused with `LowerError::UnsupportedKernel`; a future
+//!   path would spell an atomic with `sycl::atomic_ref` (`fetch_add` / `fetch_max` / `fetch_min`).
 //! - Body nodes: input, constant, parameter, `+ - * /`, unary, binary, select, fma. A body with
 //!   casts, bitcasts, qualifiers, locals, coordinates, reductions or packs is refused
 //!   ([`LowerError::UnsupportedOp`]) rather than lowered through a default seam that panics.
@@ -61,7 +64,7 @@ impl Backend for Sycl {
     }
 
     fn supports_dtype(&self, dtype: ElementKind, _target: TargetId) -> DtypeSupport {
-        // The answer is by dtype alone: `unpopped-vocab` 0.34.11 has no SYCL target namespace,
+        // The answer is by dtype alone: `unpopped-vocab` 0.40.0 has no SYCL target namespace,
         // so there is nothing to condition on. `f64` is spelled correctly, but a device may lack
         // fp64; the generated host function reports that at run time (status 3) instead of
         // crashing. Exhaustive on purpose (`ElementKind` is not `#[non_exhaustive]`): a new

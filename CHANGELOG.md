@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.28
+
+- `bonefish-sycl-emit`: **unpopped and unpopped-vocab 0.34.11 -> 0.40.0** (exact pins, as before). Unpopped 0.40.0 is Breaking (it adds `Stmt::AtomicRmw`, relaxed, global integer element); the emitter needed no source change because it lowers `KernelPlan`s through `Backend::lower` and never matches `Stmt`. The emitter does not override `Backend::lower_kernel`, so a `KernelFn` with an atomic is **declined** with the typed `LowerError::UnsupportedKernel` (new toolchain-free test `kernel_layer_decline`, for add, max and min; the kernel passes `check_kernel`, so the refusal is the backend's). A kernel-layer path emitting `sycl::atomic_ref` is not built.
+- Checked on 0.40.0: the existing emitter tests, including the 11 end-to-end tests compiled with icpx 2026.1 on the CPU/OpenCL device (Windows), pass unchanged. `unpopped-vocab` 0.40.0 still has no SYCL target namespace (grep for `sycl` in its source: no files; same grep for `cuda` finds files).
+- Not verified: any GPU, Linux locally.
+- Version number is a placeholder for the PM (stacks after 0.0.27, which is #28).
+
 ## 0.0.26
 
 - `bonefish-sys` shim (R3d): **every blocking entry point now reports asynchronous errors.** `bf_sgemm`, `bf_dgemm`, the complex gemm, the level-1 and `gemv` functions, `bf_dft_compute`, `bf_dftr_compute` and `bf_memcpy` end with `wait_and_throw` on their queue and drain the queue's error store (new `bf::settle` / `bf::guard_blocking` in `common.hpp`), after the oneMKL lock is released. A failure that surfaces during the call is returned by it (status 1, message in `bf_last_error`) and reported once; before, the call waited for the failing task, returned 0 and left the error for the next `bf_queue_wait` / `bf_event_wait` / `Queue::scope` (measured for `bf_memcpy`, 3 of 3 runs, Windows, oneAPI 2026.1, CPU/OpenCL).
