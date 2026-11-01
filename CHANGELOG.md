@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.28
+
+- `bonefish-sycl-emit`: **unpopped and unpopped-vocab 0.34.11 -> 0.40.0** (exact pins, as before). Unpopped 0.40.0 is Breaking (it adds `Stmt::AtomicRmw`, relaxed, global integer element); the emitter needed no source change because it lowers `KernelPlan`s through `Backend::lower` and never matches `Stmt`. The emitter does not override `Backend::lower_kernel`, so a `KernelFn` with an atomic is **declined** with the typed `LowerError::UnsupportedKernel` (new toolchain-free test `kernel_layer_decline`, for add, max and min; the kernel passes `check_kernel`, so the refusal is the backend's). A kernel-layer path emitting `sycl::atomic_ref` is not built.
+- Checked on 0.40.0: the existing emitter tests, including the 11 end-to-end tests compiled with icpx 2026.1 on the CPU/OpenCL device (Windows), pass unchanged. `unpopped-vocab` 0.40.0 still has no SYCL target namespace (grep for `sycl` in its source: no files; same grep for `cuda` finds files).
+- Not verified: any GPU, Linux locally.
+- Version number is a placeholder for the PM (stacks after 0.0.27, which is #28).
+
 ## 0.0.27
 
 - Docs and CI only (R7). New `docs/r7/` (`sweep.cpp`, `run.sh`, `RESULTS.md`) and a manual workflow `.github/workflows/r7-sweep.yml`: a sweep of 27 float unary-math cases (25 functions; `sin` and `cos` also over a wide range) in two spellings (libm name, `sycl::`) under four flag sets, against a double-precision host reference. **Under the compiler's default flags the libm spelling is wrong by hundreds to thousands of ULP for `exp` (7620), `sin`/`cos` (about 5000), `tan` (1579), and by 16 to 29 ULP for `exp2`, `log`, `log2`, `log10`**; with `-ffp-model=precise`, `-fno-fast-math` or `-fp-model=precise` (identical tables) or with `sycl::` they are within 4.3 ULP. The other ops are unaffected. `erf` is 7.94 ULP in every cell (`sycl::erf` itself, not a flag effect).
