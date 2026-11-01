@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.29
+
+- New crate **`bonefish-sycl-parse`** (R4b): the SYCL/DPC++ front end on Unpopped's parse contract. It supplies a `Frontend` (`SYCL`) and a tree-sitter C++ binding (`parse_sycl`, `tree-sitter-cpp` 0.23, `tree-sitter` 0.27) to the shared `unpopped::convert` walkers (`convert` feature of `unpopped` =0.40.0), the way `baracuda-cuda-parse` does for CUDA and `vulkane-slang-parse` for Slang. Idiom set (v1): a `parallel_for` kernel storing `out[i] = <expr>` over `in{K}[i]`, literals, ternaries, locals and `sycl::` math; the naive reduction and scan loops of the other front ends. `SYCL_RESIDUE` (local memory, group barriers and fences, atomics, sub-groups, SYCL reductions, oneMKL calls) is refused as `Inexpressible`.
+- **Math is `sycl::`-qualified only, by design**: `sycl::exp(x)` lifts to `Exp`, but `expf`, `sinf`, bare `exp` are refused as `Unrecognized`, because under the compiler's default flags the libm spellings are off by up to thousands of ULP (R7, `docs/r7/RESULTS.md`; CPU devices). `sycl::max`/`min` are not mapped (NaN behaviour unspecified in the SYCL spec).
+- Tests (`tests/lift.rs`, 7, plus a doctest; toolchain-free): grammar loads and broken source is an `ERROR` node, a multiply, `sycl::exp` lifts / libm refused, every residue marker refused, not-a-kernel, a reduction loop lifts as a reduction only, and a **round trip**: the emitter's output for add, mul, sub, div and exp parses back to exactly the `OpDef` body it was generated from.
+- Not done: `nd_range` / `nd_item` kernels (not refused by name; the walkers decide), 2-D or higher ranks, `ResourceMap`-declared names are supported by the shared walker but not tested here, anything on a GPU. Stacked on #29 (unpopped 0.40.0).
+- Version number is a placeholder for the PM (stacks after 0.0.28, which is #29).
+
+
 ## 0.0.28
 
 - `bonefish-sycl-emit`: **unpopped and unpopped-vocab 0.34.11 -> 0.40.0** (exact pins, as before). Unpopped 0.40.0 is Breaking (it adds `Stmt::AtomicRmw`, relaxed, global integer element); the emitter needed no source change because it lowers `KernelPlan`s through `Backend::lower` and never matches `Stmt`. The emitter does not override `Backend::lower_kernel`, so a `KernelFn` with an atomic is **declined** with the typed `LowerError::UnsupportedKernel` (new toolchain-free test `kernel_layer_decline`, for add, max and min; the kernel passes `check_kernel`, so the refusal is the backend's). A kernel-layer path emitting `sycl::atomic_ref` is not built.
