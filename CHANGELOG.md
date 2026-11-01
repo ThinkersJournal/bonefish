@@ -7,6 +7,12 @@
 - Not verified: any GPU, Linux locally.
 - Version number is a placeholder for the PM (stacks after 0.0.27, which is #28).
 
+## 0.0.27
+
+- Docs and CI only (R7). New `docs/r7/` (`sweep.cpp`, `run.sh`, `RESULTS.md`) and a manual workflow `.github/workflows/r7-sweep.yml`: a sweep of 27 float unary-math cases (25 functions; `sin` and `cos` also over a wide range) in two spellings (libm name, `sycl::`) under four flag sets, against a double-precision host reference. **Under the compiler's default flags the libm spelling is wrong by hundreds to thousands of ULP for `exp` (7620), `sin`/`cos` (about 5000), `tan` (1579), and by 16 to 29 ULP for `exp2`, `log`, `log2`, `log10`**; with `-ffp-model=precise`, `-fno-fast-math` or `-fp-model=precise` (identical tables) or with `sycl::` they are within 4.3 ULP. The other ops are unaffected. `erf` is 7.94 ULP in every cell (`sycl::erf` itself, not a flag effect).
+- Measured on CPU (OpenCL) devices only: Windows 11 / AMD Ryzen 9 7940HX / icpx 2026.1.0.20260617 and Ubuntu (GitHub runner) / AMD EPYC 9V74 / icpx 2026.2.0.20261001; **the two gave identical tables in every cell**. Not measured: any GPU (no Intel GPU available to this project), double precision, binary ops, other releases.
+- Version number is a placeholder for the PM (stacks after 0.0.26).
+
 ## 0.0.26
 
 - `bonefish-sys` shim (R3d): **every blocking entry point now reports asynchronous errors.** `bf_sgemm`, `bf_dgemm`, the complex gemm, the level-1 and `gemv` functions, `bf_dft_compute`, `bf_dftr_compute` and `bf_memcpy` end with `wait_and_throw` on their queue and drain the queue's error store (new `bf::settle` / `bf::guard_blocking` in `common.hpp`), after the oneMKL lock is released. A failure that surfaces during the call is returned by it (status 1, message in `bf_last_error`) and reported once; before, the call waited for the failing task, returned 0 and left the error for the next `bf_queue_wait` / `bf_event_wait` / `Queue::scope` (measured for `bf_memcpy`, 3 of 3 runs, Windows, oneAPI 2026.1, CPU/OpenCL).
