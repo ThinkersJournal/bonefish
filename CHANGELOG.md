@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.30
+
+- Docs only: ROADMAP row R13, the patent-risk sweep of the emitter (NVIDIA US12118382B2 / US11294713B2 and US8539204B2, CireSnave rulings 2026-11-13). Exposure today: none (no kernel-layer lowering). Future lowering of async-copy/wait and collective reduce/scan declines by name for non-NVIDIA targets. Not legal advice.
+- Version number is a placeholder for the PM (same slot as #31; the PM allocates).
+
 ## 0.0.29
 
 - New crate **`bonefish-sycl-parse`** (R4b): the SYCL/DPC++ front end on Unpopped's parse contract. It supplies a `Frontend` (`SYCL`) and a tree-sitter C++ binding (`parse_sycl`, `tree-sitter-cpp` 0.23, `tree-sitter` 0.27) to the shared `unpopped::convert` walkers (`convert` feature of `unpopped` =0.40.0), the way `baracuda-cuda-parse` does for CUDA and `vulkane-slang-parse` for Slang. Idiom set (v1): a `parallel_for` kernel storing `out[i] = <expr>` over `in{K}[i]`, literals, ternaries, locals and `sycl::` math; the naive reduction and scan loops of the other front ends. `SYCL_RESIDUE` (local memory, group barriers and fences, atomics, sub-groups, SYCL reductions, oneMKL calls) is refused as `Inexpressible`.
