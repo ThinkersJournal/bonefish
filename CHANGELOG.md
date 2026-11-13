@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.30
+
+- `bonefish-sycl-emit` and `bonefish-sycl-parse`: **unpopped and unpopped-vocab 0.40.0 -> 0.43.2** (exact pins; 0.43.2 is the newest on crates.io, checked 2026-11-13; 0.45.x is not published). Source change: only `tests/kernel_layer_decline.rs`, which now builds its atomic with `Stmt::atomic_rmw(op, place, value)` (0.41 added `old`, `order`, `scope` to `Stmt::AtomicRmw`; the constructor gives the same relaxed device-scope form). The emitter still does not override `Backend::lower_kernel`, so atomics stay declined by name.
+- Checked on 0.43.2, Windows 11 / icpx 2026.1 on the CPU/OpenCL device: emit 11 unit + 1 decline + 11 end-to-end + 4 token tests, parse 7 + 1 doctest, all pass. Not verified: Linux locally, any GPU.
+- Not done: E16 integer Div/Rem/Shl/Shr total rule and the U4 sync/atomic spellings (`sycl::atomic_ref`) in the emitter.
+- Version number is a placeholder for the PM.
+
 ## 0.0.29
 
 - New crate **`bonefish-sycl-parse`** (R4b): the SYCL/DPC++ front end on Unpopped's parse contract. It supplies a `Frontend` (`SYCL`) and a tree-sitter C++ binding (`parse_sycl`, `tree-sitter-cpp` 0.23, `tree-sitter` 0.27) to the shared `unpopped::convert` walkers (`convert` feature of `unpopped` =0.40.0), the way `baracuda-cuda-parse` does for CUDA and `vulkane-slang-parse` for Slang. Idiom set (v1): a `parallel_for` kernel storing `out[i] = <expr>` over `in{K}[i]`, literals, ternaries, locals and `sycl::` math; the naive reduction and scan loops of the other front ends. `SYCL_RESIDUE` (local memory, group barriers and fences, atomics, sub-groups, SYCL reductions, oneMKL calls) is refused as `Inexpressible`.

@@ -19,14 +19,14 @@ fn atomic_kernel(op: AtomicOp) -> KernelFn {
         i32k,
         vec![Param::buffer("c", i32k, BufferRole::ReadWrite, Some(1))],
         vec![],
-        Block(vec![Stmt::AtomicRmw {
+        Block(vec![Stmt::atomic_rmw(
             op,
-            place: Place::Logical {
+            Place::Logical {
                 buffer: 0,
                 coords: vec![ScalarExpr::ConstInt(0, i32k)],
             },
-            value: ScalarExpr::ConstInt(1, i32k),
-        }]),
+            ScalarExpr::ConstInt(1, i32k),
+        )]),
     );
     k.launch = Some(LaunchShape::new([4, 1, 1], [3, 1, 1]));
     k
