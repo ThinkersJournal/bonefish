@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.32
+
+- `bonefish-sycl-emit` and `bonefish-sycl-parse`: **unpopped and unpopped-vocab 0.43.2 -> 0.45.17** (exact pins; newest on crates.io, checked 2026-11-14). No source change was needed: `cargo check --workspace --all-targets` passes unchanged.
+- Declines by name hold with no new code: the emitter does not override `Backend::lower_kernel`, whose default returns `UnsupportedKernel`, so a kernel using `AtomicRmw`, `AtomicCas`, `Fence`, `Call`, `Collective`, `AsyncWait`, `CopyAsync` or `AsyncCommit` is refused before anything is generated (ROADMAP R13). Only the atomic case has a test.
+- KISS 0.16.0 window-op attrs (`padding` -> `padding_lo` + `padding_hi`): **no window-op lowering yet** here. A search of every `.rs` for `padding`, `avg_pool`, `max_pool`, `im2col` and `OpAttrs` finds only DFT-padding comments.
+- Version number is a placeholder for the PM (stacks after 0.0.31, which is #32).
+
 ## 0.0.31
 
 - Docs only: ROADMAP row R13, the patent-risk sweep of the emitter (NVIDIA US12118382B2 / US11294713B2 and US8539204B2, CireSnave rulings 2026-11-13). Exposure today: none (no kernel-layer lowering). Future lowering of async-copy/wait and collective reduce/scan declines by name for non-NVIDIA targets. Not legal advice.
