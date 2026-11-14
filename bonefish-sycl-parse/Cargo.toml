@@ -1,6 +1,6 @@
 [package]
 name = "bonefish-sycl-parse"
-version = "0.0.30"
+version = "0.0.31"
 edition = "2024"
 rust-version = "1.85"
 description = "SYCL/DPC++ front end for the neutral unpopped kernel generator: a tree-sitter C++ parser and the SYCL Frontend that lifts SYCL elementwise kernels into unpopped's IR."
