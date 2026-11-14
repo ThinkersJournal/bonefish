@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.31
+
+- Docs only: ROADMAP row R13, the patent-risk sweep of the emitter (NVIDIA US12118382B2 / US11294713B2 and US8539204B2, CireSnave rulings 2026-11-13). Exposure today: none (no kernel-layer lowering). Future lowering of async-copy/wait and collective reduce/scan declines by name for non-NVIDIA targets. Not legal advice.
+- Version number is a placeholder for the PM (stacks after 0.0.30, which is #31; the PM allocates).
+
 ## 0.0.30
 
 - `bonefish-sycl-emit` and `bonefish-sycl-parse`: **unpopped and unpopped-vocab 0.40.0 -> 0.43.2** (exact pins; 0.43.2 is the newest on crates.io, checked 2026-11-13; 0.45.x is not published). Source change: only `tests/kernel_layer_decline.rs`, which now builds its atomic with `Stmt::atomic_rmw(op, place, value)` (0.41 added `old`, `order`, `scope` to `Stmt::AtomicRmw`; the constructor gives the same relaxed device-scope form). The emitter still does not override `Backend::lower_kernel`, so atomics stay declined by name.
