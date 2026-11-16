@@ -52,6 +52,7 @@ use crate::blas::{Transpose, check_matrix, dim};
 use crate::dft::{Dft, Placement};
 use crate::error::{Error, Result, check, last_message};
 use crate::queue::Queue;
+use crate::rdft::RealDft;
 use crate::scalar::{BlasElement, Complex, Element, GemmElement, Scalar};
 use crate::usm::UsmBuffer;
 
@@ -561,6 +562,12 @@ pub struct Plan<'scope, T: Scalar> {
     dft: &'scope Dft<T>,
 }
 
+/// A real DFT plan bound for use inside a scope, like [`Plan`]: it holds a shared borrow of the
+/// plan until the scope ends.
+pub struct RealPlan<'scope, T: Scalar> {
+    dft: &'scope RealDft<T>,
+}
+
 const NO_DEPS: *const *mut c_void = std::ptr::null();
 
 /// Level 1, `gemv` and DFT. Each call returns once the work is submitted. Operations on one queue
@@ -1017,6 +1024,88 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
             T::dft_compute_async(plan.dft.raw(), dir, input.raw().cast(), out_ptr, NO_DEPS, 0)
         };
         self.event(raw)
+    }
+
+    /// Bind a real DFT plan for use in this scope; as [`Scope::plan`] for the complex one.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::QueueMismatch`] if the plan belongs to another queue.
+    pub fn real_plan<T: Scalar>(
+        &'scope self,
+        dft: &'scope RealDft<T>,
+    ) -> Result<RealPlan<'scope, T>> {
+        if !self.queue.same_as(dft.queue()) {
+            return Err(Error::QueueMismatch);
+        }
+        Ok(RealPlan { dft })
+    }
+
+    fn rdft_run<A: Element, B: Element, T: Scalar>(
+        &'scope self,
+        plan: &RealPlan<'scope, T>,
+        dir: i32,
+        (input, in_need): (&UsmBuffer<A>, usize),
+        (output, out_need): (&UsmBuffer<B>, usize),
+    ) -> Result<Event<'scope>> {
+        for (name, have, need) in [
+            ("input", input.len(), in_need),
+            ("output", output.len(), out_need),
+        ] {
+            if have < need {
+                return Err(Error::InvalidArgument(format!(
+                    "{name} has {have} elements, the plan needs {need}"
+                )));
+            }
+        }
+        distinct(output, "output", input, "input")?;
+        // SAFETY: the plan and both buffers are borrowed until the scope ends, which waits first;
+        // lengths cover the plan (checked above); the element types are the plan's real and
+        // half-spectrum complex types for `dir` (fixed by the two callers); output is distinct
+        // from input.
+        let raw = unsafe {
+            sys::bf_dftr_compute_async(
+                plan.dft.raw(),
+                dir,
+                input.raw().cast(),
+                output.raw().cast(),
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// Real input to half-spectrum output (the plan is always out-of-place; layout as
+    /// [`RealDft`]).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidArgument`] for a buffer shorter than the plan or `output` being the same
+    /// buffer as `input`; submission errors as for [`Scope::gemm`].
+    pub fn rdft_forward<T: Scalar>(
+        &'scope self,
+        plan: &RealPlan<'scope, T>,
+        input: &impl Operand<T>,
+        output: &Write<'scope, Complex<T>>,
+    ) -> Result<Event<'scope>> {
+        let (r, c) = (plan.dft.real_len(), plan.dft.complex_len());
+        self.rdft_run(plan, 0, (input.buffer(), r), (&*output.buf, c))
+    }
+
+    /// Half-spectrum input to real output.
+    ///
+    /// # Errors
+    ///
+    /// As [`Scope::rdft_forward`].
+    pub fn rdft_backward<T: Scalar>(
+        &'scope self,
+        plan: &RealPlan<'scope, T>,
+        input: &impl Operand<Complex<T>>,
+        output: &Write<'scope, T>,
+    ) -> Result<Event<'scope>> {
+        let (r, c) = (plan.dft.real_len(), plan.dft.complex_len());
+        self.rdft_run(plan, 1, (input.buffer(), c), (&*output.buf, r))
     }
 
     fn dft_in_place<T: Scalar>(

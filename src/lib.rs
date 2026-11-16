@@ -42,7 +42,7 @@ pub use error::{Error, Result};
 pub use queue::{DeviceKind, Queue};
 pub use rdft::RealDft;
 pub use scalar::{BlasElement, Complex, Element, GemmElement, Scalar};
-pub use scope::{DeviceTime, Event, Operand, Plan, Read, Scope, Write};
+pub use scope::{DeviceTime, Event, Operand, Plan, Read, RealPlan, Scope, Write};
 pub use usm::{UsmBuffer, UsmKind};
 
 /// Whether the SYCL shim was built into this binary.
