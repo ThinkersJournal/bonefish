@@ -1,6 +1,6 @@
 # bonefish
 
-Planned. The crate names `bonefish` and `bonefish-sys` are reserved on crates.io. No code yet; see `ROADMAP.md`.
+Rust interface to Intel oneAPI / oneMKL on SYCL devices (`bonefish`, over the `bonefish-sys` C++ shim), plus a SYCL/DPC++ parser (`bonefish-sycl-parse`) and emitter (`bonefish-sycl-emit`) on Unpopped's contract. Measured on CPU/OpenCL devices only; every GPU statement is UNVERIFIED. The crate names `bonefish` and `bonefish-sys` are reserved on crates.io. Status and open work: `ROADMAP.md`.
 
 Licensed under MIT or Apache-2.0, at your option.
 
