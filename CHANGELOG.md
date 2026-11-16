@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.34
+
+- `bonefish-sycl-emit` and `bonefish-sycl-parse`: **unpopped and unpopped-vocab 0.45.17 -> 0.47.0** (exact pins; BREAKING upstream, KISS 0.18.0). `unpopped` 0.47.0 dropped its `convert` feature: the parser now depends on the new crate `unpopped-convert =0.47.0` and imports `unpopped_convert::{Frontend, lift_elementwise, lift_reduction}`. No other source change. Checked: `cargo build --all-features --workspace --tests`, fmt and clippy `-D warnings` clean; emit 11+4+11+1 and parse 7+1 tests pass on the CPU/OpenCL device (same counts as at 0.45.17). `structure_key` is only called at runtime in `sycl_end_to_end.rs`; no stored keyed data (grep).
+- Version number is a placeholder for the PM (stacks after 0.0.33, which is #34). Breaking upstream (unpopped 0.47.0).
+
 ## 0.0.33
 
 - `bonefish` (R3, scoped async `RealDft`): `Scope::real_plan(&RealDft)` binds a real plan to a scope (new type `RealPlan`, exported), and `Scope::rdft_forward` / `Scope::rdft_backward` submit the real <-> half-spectrum transform without waiting, returning an `Event` like the complex `Scope::dft_*`. They call the existing shim entry point `bf_dftr_compute_async`; no shim or FFI change. Checked before submission: plan queue (`QueueMismatch`), each buffer at least the plan's `real_len` / `complex_len` (`InvalidArgument`, message names the needed count). Operations on one queue still run in submission order, so a backward submitted after a forward in the same scope sees the forward's output.

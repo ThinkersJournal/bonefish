@@ -2,7 +2,7 @@
 //!
 //! Bonefish owns SYCL in the CireSnave ecosystem (the emitter is `bonefish-sycl-emit`), so the
 //! language's parser lives here. Unpopped keeps the language-neutral half: [`Frontend`] and the
-//! `lift_*` walkers in `unpopped::convert`, which this crate feeds with a grammar binding, the way
+//! `lift_*` walkers in `unpopped_convert`, which this crate feeds with a grammar binding, the way
 //! `baracuda-cuda-parse` does for CUDA and `vulkane-slang-parse` for Slang.
 //!
 //! * [`parse_sycl`] - SYCL (C++) source to an error-tolerant tree-sitter CST (`tree-sitter-cpp`).
@@ -31,7 +31,7 @@
 //!
 //! ```
 //! use bonefish_sycl_parse::SYCL;
-//! use unpopped::convert::lift_elementwise;
+//! use unpopped_convert::lift_elementwise;
 //! use unpopped_vocab::ElementKind;
 //!
 //! let src = "q.parallel_for(sycl::range<1>(n), [=](sycl::id<1> id) { size_t i = id[0]; out[i] = in0[i] * in1[i]; });";
@@ -42,8 +42,8 @@
 //! The grammar crate (`tree-sitter-cpp`) is named in exactly one place, [`parse_sycl`].
 
 use tree_sitter::{Parser, Tree};
-use unpopped::convert::Frontend;
 use unpopped::ir::{BinaryOp, UnaryOp};
+use unpopped_convert::Frontend;
 
 /// Parse SYCL source into a tree-sitter CST.
 ///
