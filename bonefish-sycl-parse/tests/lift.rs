@@ -4,9 +4,9 @@
 use bonefish_sycl_emit::Sycl;
 use bonefish_sycl_parse::{SYCL, SYCL_RESIDUE, parse_sycl};
 use unpopped::LiftError;
-use unpopped::convert::{lift_elementwise, lift_reduction};
 use unpopped::generate;
 use unpopped::ir::{OpDef, ScalarExpr, input};
+use unpopped_convert::{lift_elementwise, lift_reduction};
 use unpopped_vocab::{ArchSku, ElementKind, OpCategory, OperandDesc, structure_key};
 
 const F32: &[ElementKind] = &[ElementKind::F32];
