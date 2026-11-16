@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.33
+
+- `bonefish` (R3, scoped async `RealDft`): `Scope::real_plan(&RealDft)` binds a real plan to a scope (new type `RealPlan`, exported), and `Scope::rdft_forward` / `Scope::rdft_backward` submit the real <-> half-spectrum transform without waiting, returning an `Event` like the complex `Scope::dft_*`. They call the existing shim entry point `bf_dftr_compute_async`; no shim or FFI change. Checked before submission: plan queue (`QueueMismatch`), each buffer at least the plan's `real_len` / `complex_len` (`InvalidArgument`, message names the needed count). Operations on one queue still run in submission order, so a backward submitted after a forward in the same scope sees the forward's output.
+- Tests (`tests/real_dft.rs`, 2 new): a scoped forward equals the blocking forward to 1e-12 and a scoped forward + backward in one scope round-trips the input (1-D n=9 and 2-D 4x6, `f64`); a short output buffer and a plan from another queue are refused, with the correct call accepted as the control. Negative control: with the output-length check weakened to 0 the refusal test fails (run, then reverted).
+- Measured on the CPU/OpenCL device only (Windows 11, icpx 2026.1); not verified: any GPU, `f32` through the scoped path, in-place real transforms (still not offered).
+- Version number is a placeholder for the PM (stacks after 0.0.32, which is #33).
+
 ## 0.0.32
 
 - `bonefish-sycl-emit` and `bonefish-sycl-parse`: **unpopped and unpopped-vocab 0.43.2 -> 0.45.17** (exact pins; newest on crates.io, checked 2026-11-14). No source change was needed: `cargo check --workspace --all-targets` passes unchanged.

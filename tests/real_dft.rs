@@ -162,3 +162,69 @@ fn refusals_come_before_the_device_is_touched() {
         Err(Error::QueueMismatch)
     ));
 }
+
+#[test]
+fn a_scoped_real_dft_matches_the_blocking_one_and_round_trips_in_one_scope() {
+    let Some(q) = queue("scoped") else { return };
+    for dims in [vec![9_usize], vec![4, 6]] {
+        let n: usize = dims.iter().product();
+        let plan = RealDft::<f64>::new(&q, &dims, 1.0, 1.0 / n as f64).unwrap();
+        let x = signal(n);
+        let input = UsmBuffer::from_slice(&q, UsmKind::Shared, &x).unwrap();
+        let mut spec =
+            UsmBuffer::<Complex<f64>>::zeroed(&q, UsmKind::Shared, plan.complex_len()).unwrap();
+        let mut back = UsmBuffer::<f64>::zeroed(&q, UsmKind::Shared, n).unwrap();
+        // The blocking result, the reference for the scoped one.
+        let mut want =
+            UsmBuffer::<Complex<f64>>::zeroed(&q, UsmKind::Shared, plan.complex_len()).unwrap();
+        plan.forward(&input, &mut want).unwrap();
+        q.scope(|s| {
+            let p = s.real_plan(&plan)?;
+            let i = s.read(&input)?;
+            let sp = s.write(&mut spec)?;
+            let b = s.write(&mut back)?;
+            // Both submitted before anything waits: the backward must see the forward's output.
+            s.rdft_forward(&p, &i, &sp)?;
+            s.rdft_backward(&p, &sp, &b)?;
+            Ok(())
+        })
+        .unwrap();
+        let e = max_err(&spec.to_vec().unwrap(), &want.to_vec().unwrap());
+        assert!(
+            e < 1e-12,
+            "{dims:?}: scoped forward differs from blocking by {e}"
+        );
+        for (i, (g, w)) in back.to_vec().unwrap().iter().zip(&x).enumerate() {
+            assert!((g - w).abs() < 1e-9, "{dims:?} element {i}: {g} vs {w}");
+        }
+    }
+}
+
+#[test]
+fn a_scoped_real_dft_refuses_short_buffers_and_a_foreign_plan() {
+    let Some(q) = queue("scoped_refusals") else {
+        return;
+    };
+    let other = Queue::new(DeviceKind::Cpu).expect("a CPU SYCL device");
+    let plan = RealDft::<f32>::new(&q, &[8], 1.0, 1.0).unwrap();
+    let foreign = RealDft::<f32>::new(&other, &[8], 1.0, 1.0).unwrap();
+    let input = UsmBuffer::<f32>::zeroed(&q, UsmKind::Shared, 8).unwrap();
+    let mut out = UsmBuffer::<Complex<f32>>::zeroed(&q, UsmKind::Shared, 5).unwrap();
+    let mut small = UsmBuffer::<Complex<f32>>::zeroed(&q, UsmKind::Shared, 2).unwrap();
+    q.scope(|s| {
+        let p = s.real_plan(&plan)?;
+        assert!(matches!(s.real_plan(&foreign), Err(Error::QueueMismatch)));
+        let i = s.read(&input)?;
+        let o = s.write(&mut out)?;
+        let sm = s.write(&mut small)?;
+        let e = s.rdft_forward(&p, &i, &sm).unwrap_err();
+        assert!(
+            matches!(&e, Error::InvalidArgument(m) if m.contains("needs 5")),
+            "{e}"
+        );
+        // Control: the right call is accepted.
+        s.rdft_forward(&p, &i, &o)?;
+        Ok(())
+    })
+    .unwrap();
+}

@@ -149,6 +149,14 @@ impl<T: Scalar> RealDft<T> {
         self.complex_len
     }
 
+    pub(crate) fn raw(&self) -> *mut c_void {
+        self.handle.as_ptr()
+    }
+
+    pub(crate) fn queue(&self) -> &Queue {
+        &self.queue
+    }
+
     fn check_queue(&self, queue: &Queue) -> Result<()> {
         if self.queue.same_as(queue) {
             Ok(())
