@@ -13,14 +13,14 @@ dependencies = [
 
 [[package]]
 name = "bonefish"
-version = "0.0.33"
+version = "0.0.34"
 dependencies = [
  "bonefish-sys",
 ]
 
 [[package]]
 name = "bonefish-sycl-emit"
-version = "0.0.33"
+version = "0.0.34"
 dependencies = [
  "unpopped",
  "unpopped-vocab",
@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish-sycl-parse"
-version = "0.0.33"
+version = "0.0.34"
 dependencies = [
  "bonefish-sycl-emit",
  "tree-sitter",
@@ -40,7 +40,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish-sys"
-version = "0.0.33"
+version = "0.0.34"
 
 [[package]]
 name = "cc"
