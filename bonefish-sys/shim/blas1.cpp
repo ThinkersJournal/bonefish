@@ -46,6 +46,26 @@ oneapi::mkl::transpose T(int32_t t) {
       blas::iamax(bf::Q(q), n, x, incx, result, oneapi::mkl::index_base::zero).wait();            \
     });                                                                                           \
   }                                                                                               \
+  /* Zero-based index of the first element of smallest magnitude. */                             \
+  BF_API int32_t bf_##P##iamin(void *q, int64_t n, const TY *x, int64_t incx, int64_t *result) { \
+    return bf::guard_blocking(bf::Q(q), *bf::Store(q), [&] {                                      \
+      blas::iamin(bf::Q(q), n, x, incx, result, oneapi::mkl::index_base::zero).wait();            \
+    });                                                                                           \
+  }                                                                                               \
+  /* Givens rotation of (x, y) by (c, s). */                                                      \
+  BF_API int32_t bf_##P##rot(void *q, int64_t n, TY *x, int64_t incx, TY *y, int64_t incy, TY c,  \
+                             TY s) {                                                              \
+    return bf::guard_blocking(bf::Q(q), *bf::Store(q), [&] {                                      \
+      blas::rot(bf::Q(q), n, x, incx, y, incy, c, s).wait();                                      \
+    });                                                                                           \
+  }                                                                                               \
+  /* A = alpha * x * y^T + A; A is m x n, column-major. */                                        \
+  BF_API int32_t bf_##P##ger(void *q, int64_t m, int64_t n, TY alpha, const TY *x, int64_t incx,  \
+                             const TY *y, int64_t incy, TY *a, int64_t lda) {                     \
+    return bf::guard_blocking(bf::Q(q), *bf::Store(q), [&] {                                      \
+      blas::ger(bf::Q(q), m, n, alpha, x, incx, y, incy, a, lda).wait();                          \
+    });                                                                                           \
+  }                                                                                               \
   /* y = alpha * op(A) * x + beta * y; A is m x n, column-major. */                              \
   BF_API int32_t bf_##P##gemv(void *q, int32_t trans, int64_t m, int64_t n, TY alpha,            \
                               const TY *a, int64_t lda, const TY *x, int64_t incx, TY beta,      \
