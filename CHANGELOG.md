@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.35
+
+- CI: the shared portfolio workflow pin moves to coderipper `03d8ac318c9afe63bff67a165d447f406a96befe` (0.47.7; PM pin-move recipe, which allows pinning it directly). `tools/migrate-rule-ids.py` run over all 76 tracked files: nothing to migrate (no `.coderipper.toml`, no old rule names; control: the same tool rewrites `coderipper check reachability`).
+- Docs (ROADMAP R13, README): NVIDIA US11803380B2 per CireSnave 2026-11-16: the emitter declines `MbarInit`, `MbarArrive`, `MbarCompleteTx`, `MbarWait`, `Tcgen05Commit`, `CopyBulk` by name (whole-kernel `UnsupportedKernel`, no code change). No refusal test yet: published unpopped 0.47.0 has no such statements; add the test when they ship.
+- Version number is a placeholder for the PM (stacks after 0.0.34, which is #35).
+
 ## 0.0.34
 
 - `bonefish-sycl-emit` and `bonefish-sycl-parse`: **unpopped and unpopped-vocab 0.45.17 -> 0.47.0** (exact pins; BREAKING upstream, KISS 0.18.0). `unpopped` 0.47.0 dropped its `convert` feature: the parser now depends on the new crate `unpopped-convert =0.47.0` and imports `unpopped_convert::{Frontend, lift_elementwise, lift_reduction}`. No other source change. Checked: `cargo build --all-features --workspace --tests`, fmt and clippy `-D warnings` clean; emit 11+4+11+1 and parse 7+1 tests pass on the CPU/OpenCL device (same counts as at 0.45.17). `structure_key` is only called at runtime in `sycl_end_to_end.rs`; no stored keyed data (grep).
