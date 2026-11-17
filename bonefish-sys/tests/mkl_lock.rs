@@ -95,6 +95,18 @@ const MKL_FUNCS: &[&str] = &[
     "bf_dftr_compute",
     "bf_dftr_compute_async",
     "bf_dft_free",
+    "bf_siamin",
+    "bf_siamin_async",
+    "bf_srot",
+    "bf_srot_async",
+    "bf_sger",
+    "bf_sger_async",
+    "bf_diamin",
+    "bf_diamin_async",
+    "bf_drot",
+    "bf_drot_async",
+    "bf_dger",
+    "bf_dger_async",
 ];
 
 /// Functions that do not call oneMKL (SYCL runtime calls and bookkeeping).
@@ -490,6 +502,63 @@ mod counter {
             bf_diamax_async,
             bf_dgemv_async,
             seen
+        );
+
+        // iamin, rot, ger: blocking and non-blocking, both precisions, one lock entry each.
+        macro_rules! ext_calls {
+            ($t:ty, $iamin:ident, $rot:ident, $ger:ident, $iamin_a:ident, $rot_a:ident,
+             $ger_a:ident) => {{
+                let sz = std::mem::size_of::<$t>() as i64;
+                let (x, y, m) = (
+                    Usm::new(q, 16 * sz),
+                    Usm::new(q, 16 * sz),
+                    Usm::new(q, 16 * sz),
+                );
+                let (xp, yp, mp) = (x.p.cast::<$t>(), y.p.cast::<$t>(), m.p.cast::<$t>());
+                let idx = Usm::new(q, 8);
+                let ip = idx.p.cast::<i64>();
+                let none: *const *mut c_void = std::ptr::null();
+                seen.push(stringify!($iamin));
+                let (d, rc) = moved(|| unsafe { $iamin(q, 4, xp, 1, ip) });
+                assert_eq!((rc, d), (0, 1), "{}", stringify!($iamin));
+                seen.push(stringify!($rot));
+                let (d, rc) = moved(|| unsafe { $rot(q, 4, xp, 1, yp, 1, 1.0, 0.0) });
+                assert_eq!((rc, d), (0, 1), "{}", stringify!($rot));
+                seen.push(stringify!($ger));
+                let (d, rc) = moved(|| unsafe { $ger(q, 2, 2, 1.0, xp, 1, yp, 1, mp, 2) });
+                assert_eq!((rc, d), (0, 1), "{}", stringify!($ger));
+                macro_rules! one_ext {
+                    ($f:ident, $call:expr) => {{
+                        seen.push(stringify!($f));
+                        let (d, ev) = moved(|| unsafe { $call });
+                        assert!(!ev.is_null(), "{} returned no event", stringify!($f));
+                        assert_eq!(d, 1, "{} moved the counter by {d}, not 1", stringify!($f));
+                        assert_eq!(unsafe { bf_event_wait(ev) }, 0, "{}", stringify!($f));
+                        unsafe { bf_event_free(ev) };
+                    }};
+                }
+                one_ext!($iamin_a, $iamin_a(q, 4, xp, 1, ip, none, 0));
+                one_ext!($rot_a, $rot_a(q, 4, xp, 1, yp, 1, 1.0, 0.0, none, 0));
+                one_ext!($ger_a, $ger_a(q, 2, 2, 1.0, xp, 1, yp, 1, mp, 2, none, 0));
+            }};
+        }
+        ext_calls!(
+            f32,
+            bf_siamin,
+            bf_srot,
+            bf_sger,
+            bf_siamin_async,
+            bf_srot_async,
+            bf_sger_async
+        );
+        ext_calls!(
+            f64,
+            bf_diamin,
+            bf_drot,
+            bf_dger,
+            bf_diamin_async,
+            bf_drot_async,
+            bf_dger_async
         );
 
         // Non-blocking DFT compute: a plan, one async compute, wait, free.

@@ -118,6 +118,33 @@ mod ffi {
         /// Zero-based index of the first element of largest magnitude.
         pub fn bf_siamax(q: *mut c_void, n: i64, x: *const f32, incx: i64, result: *mut i64)
         -> i32;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_siamin(q: *mut c_void, n: i64, x: *const f32, incx: i64, result: *mut i64)
+        -> i32;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_srot(
+            q: *mut c_void,
+            n: i64,
+            x: *mut f32,
+            incx: i64,
+            y: *mut f32,
+            incy: i64,
+            c: f32,
+            s: f32,
+        ) -> i32;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_sger(
+            q: *mut c_void,
+            m: i64,
+            n: i64,
+            alpha: f32,
+            x: *const f32,
+            incx: i64,
+            y: *const f32,
+            incy: i64,
+            a: *mut f32,
+            lda: i64,
+        ) -> i32;
         /// `y = alpha * op(A) * x + beta * y`, `A` is `m x n` column-major. `trans`: 0 N, 1 T, 2 C.
         pub fn bf_sgemv(
             q: *mut c_void,
@@ -174,6 +201,33 @@ mod ffi {
         /// Zero-based index of the first element of largest magnitude.
         pub fn bf_diamax(q: *mut c_void, n: i64, x: *const f64, incx: i64, result: *mut i64)
         -> i32;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_diamin(q: *mut c_void, n: i64, x: *const f64, incx: i64, result: *mut i64)
+        -> i32;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_drot(
+            q: *mut c_void,
+            n: i64,
+            x: *mut f64,
+            incx: i64,
+            y: *mut f64,
+            incy: i64,
+            c: f64,
+            s: f64,
+        ) -> i32;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_dger(
+            q: *mut c_void,
+            m: i64,
+            n: i64,
+            alpha: f64,
+            x: *const f64,
+            incx: i64,
+            y: *const f64,
+            incy: i64,
+            a: *mut f64,
+            lda: i64,
+        ) -> i32;
         /// `y = alpha * op(A) * x + beta * y`, `A` is `m x n` column-major. `trans`: 0 N, 1 T, 2 C.
         pub fn bf_dgemv(
             q: *mut c_void,
@@ -352,6 +406,44 @@ mod ffi {
             n_deps: i64,
         ) -> *mut c_void;
         #[allow(clippy::too_many_arguments)]
+        pub fn bf_siamin_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f32,
+            incx: i64,
+            result: *mut i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_srot_async(
+            q: *mut c_void,
+            n: i64,
+            x: *mut f32,
+            incx: i64,
+            y: *mut f32,
+            incy: i64,
+            c: f32,
+            s: f32,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_sger_async(
+            q: *mut c_void,
+            m: i64,
+            n: i64,
+            alpha: f32,
+            x: *const f32,
+            incx: i64,
+            y: *const f32,
+            incy: i64,
+            a: *mut f32,
+            lda: i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
         pub fn bf_sgemv_async(
             q: *mut c_void,
             trans: i32,
@@ -451,6 +543,44 @@ mod ffi {
             x: *const f64,
             incx: i64,
             result: *mut i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_diamin_async(
+            q: *mut c_void,
+            n: i64,
+            x: *const f64,
+            incx: i64,
+            result: *mut i64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_drot_async(
+            q: *mut c_void,
+            n: i64,
+            x: *mut f64,
+            incx: i64,
+            y: *mut f64,
+            incy: i64,
+            c: f64,
+            s: f64,
+            deps: *const *mut c_void,
+            n_deps: i64,
+        ) -> *mut c_void;
+        #[allow(clippy::too_many_arguments)]
+        pub fn bf_dger_async(
+            q: *mut c_void,
+            m: i64,
+            n: i64,
+            alpha: f64,
+            x: *const f64,
+            incx: i64,
+            y: *const f64,
+            incy: i64,
+            a: *mut f64,
+            lda: i64,
             deps: *const *mut c_void,
             n_deps: i64,
         ) -> *mut c_void;
@@ -1028,6 +1158,47 @@ mod stub {
         STATUS_UNAVAILABLE
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_siamin(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _result: *mut i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_srot(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *mut f32,
+        _incx: i64,
+        _y: *mut f32,
+        _incy: i64,
+        _c: f32,
+        _s: f32,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_sger(
+        _q: *mut c_void,
+        _m: i64,
+        _n: i64,
+        _alpha: f32,
+        _x: *const f32,
+        _incx: i64,
+        _y: *const f32,
+        _incy: i64,
+        _a: *mut f32,
+        _lda: i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
     pub unsafe extern "C" fn bf_sgemv(
         _q: *mut c_void,
         _trans: i32,
@@ -1127,6 +1298,47 @@ mod stub {
         _x: *const f64,
         _incx: i64,
         _result: *mut i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_diamin(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _result: *mut i64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_drot(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *mut f64,
+        _incx: i64,
+        _y: *mut f64,
+        _incy: i64,
+        _c: f64,
+        _s: f64,
+    ) -> i32 {
+        STATUS_UNAVAILABLE
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_dger(
+        _q: *mut c_void,
+        _m: i64,
+        _n: i64,
+        _alpha: f64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *const f64,
+        _incy: i64,
+        _a: *mut f64,
+        _lda: i64,
     ) -> i32 {
         STATUS_UNAVAILABLE
     }
@@ -1351,6 +1563,53 @@ mod stub {
         std::ptr::null_mut()
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_siamin_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f32,
+        _incx: i64,
+        _result: *mut i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_srot_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *mut f32,
+        _incx: i64,
+        _y: *mut f32,
+        _incy: i64,
+        _c: f32,
+        _s: f32,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_sger_async(
+        _q: *mut c_void,
+        _m: i64,
+        _n: i64,
+        _alpha: f32,
+        _x: *const f32,
+        _incx: i64,
+        _y: *const f32,
+        _incy: i64,
+        _a: *mut f32,
+        _lda: i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
     pub unsafe extern "C" fn bf_sgemv_async(
         _q: *mut c_void,
         _trans: i32,
@@ -1466,6 +1725,53 @@ mod stub {
         _x: *const f64,
         _incx: i64,
         _result: *mut i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_diamin_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *const f64,
+        _incx: i64,
+        _result: *mut i64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_drot_async(
+        _q: *mut c_void,
+        _n: i64,
+        _x: *mut f64,
+        _incx: i64,
+        _y: *mut f64,
+        _incy: i64,
+        _c: f64,
+        _s: f64,
+        _deps: *const *mut c_void,
+        _n_deps: i64,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe extern "C" fn bf_dger_async(
+        _q: *mut c_void,
+        _m: i64,
+        _n: i64,
+        _alpha: f64,
+        _x: *const f64,
+        _incx: i64,
+        _y: *const f64,
+        _incy: i64,
+        _a: *mut f64,
+        _lda: i64,
         _deps: *const *mut c_void,
         _n_deps: i64,
     ) -> *mut c_void {

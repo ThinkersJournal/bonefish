@@ -128,3 +128,39 @@ BF_API void *bf_dgemv_async(void *q, int32_t trans, int64_t m, int64_t n, double
     return blas::gemv(bf::Q(q), T(trans), m, n, alpha, a, lda, x, incx, beta, y, incy, bf::deps_chained(*bf::Store(q), deps, n_deps));
   });
 }
+
+BF_API void *bf_siamin_async(void *q, int64_t n, const float *x, int64_t incx, int64_t *result,
+                           void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::iamin(bf::Q(q), n, x, incx, result, oneapi::mkl::index_base::zero, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+BF_API void *bf_srot_async(void *q, int64_t n, float *x, int64_t incx, float *y, int64_t incy, float c,
+                           float s, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] { return blas::rot(bf::Q(q), n, x, incx, y, incy, c, s, bf::deps_chained(*bf::Store(q), deps, n_deps)); });
+}
+
+BF_API void *bf_sger_async(void *q, int64_t m, int64_t n, float alpha, const float *x, int64_t incx,
+                           const float *y, int64_t incy, float *a, int64_t lda, void *const *deps,
+                           int64_t n_deps) {
+  return submit(q, [&] { return blas::ger(bf::Q(q), m, n, alpha, x, incx, y, incy, a, lda, bf::deps_chained(*bf::Store(q), deps, n_deps)); });
+}
+
+BF_API void *bf_diamin_async(void *q, int64_t n, const double *x, int64_t incx, int64_t *result,
+                           void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::iamin(bf::Q(q), n, x, incx, result, oneapi::mkl::index_base::zero, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+BF_API void *bf_drot_async(void *q, int64_t n, double *x, int64_t incx, double *y, int64_t incy, double c,
+                           double s, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] { return blas::rot(bf::Q(q), n, x, incx, y, incy, c, s, bf::deps_chained(*bf::Store(q), deps, n_deps)); });
+}
+
+BF_API void *bf_dger_async(void *q, int64_t m, int64_t n, double alpha, const double *x, int64_t incx,
+                           const double *y, int64_t incy, double *a, int64_t lda, void *const *deps,
+                           int64_t n_deps) {
+  return submit(q, [&] { return blas::ger(bf::Q(q), m, n, alpha, x, incx, y, incy, a, lda, bf::deps_chained(*bf::Store(q), deps, n_deps)); });
+}
