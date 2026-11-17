@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.36
+
+- `bonefish-sys` shim (R2, blocking and async, `f32` and `f64`): level 1 `iamin` (zero-based, first on ties) and `rot` (Givens rotation), level 2 `ger` (rank-one update). New `tests/blas_ext.rs` (hand values, strided and error cases, both precisions) and the oneMKL lock classification and counter test cover all twelve entry points. CPU/OpenCL device only; GPU UNVERIFIED. No safe-API wrapper yet (R3).
+- Docs: README describes the real crates (it said "Planned. No code yet"); ROADMAP R3 states corrected to merged, R2 updated, new rows R14 (module cycle, Portfolio MOD-002), R15 (oversized modules, MOD-005), R16 (`Queue::status`, MOD-008).
+- Docs (ROADMAP R13, README): NVIDIA US12204897B2 and continuation US12710961B2, `WgmmaWait` (a wait on a count of pending matrix-multiply operations), joins the declined list per CireSnave 2026-11-16, via the PM. No refusal test yet: no published unpopped has the statement.
+- Version number is a placeholder for the PM (stacks after 0.0.35, which is #36).
+
 ## 0.0.35
 
 - CI: the shared portfolio workflow pin moves to coderipper `03d8ac318c9afe63bff67a165d447f406a96befe` (0.47.7; PM pin-move recipe, which allows pinning it directly). `tools/migrate-rule-ids.py` run over all 76 tracked files: nothing to migrate (no `.coderipper.toml`, no old rule names; control: the same tool rewrites `coderipper check reachability`).
