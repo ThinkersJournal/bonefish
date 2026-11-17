@@ -7,9 +7,11 @@
 
 use bonefish_sycl_emit::Sycl;
 use unpopped::backend::{Backend, LowerError};
-use unpopped::exec::LaunchShape;
-use unpopped::ir::ScalarExpr;
-use unpopped::kernel::{AtomicOp, Block, BufferRole, KernelFn, Param, Place, Stmt, check_kernel};
+use unpopped::exec::{LaunchShape, Scope};
+use unpopped::ir::{ReduceOp, ScalarExpr};
+use unpopped::kernel::{
+    AtomicOp, Block, BufferRole, CollectiveKind, KernelFn, Param, Place, Stmt, check_kernel,
+};
 use unpopped_vocab::ElementKind;
 
 fn atomic_kernel(op: AtomicOp) -> KernelFn {
@@ -58,20 +60,83 @@ fn nvidia_sync_and_bulk_copy_statements_are_declined_by_name() {
     };
     let c = |v: i64| ScalarExpr::ConstInt(v, i32k);
     let cases: Vec<(&str, Stmt)> = vec![
-        ("MbarInit", Stmt::MbarInit { bar: bar(), count: c(1) }),
-        ("MbarArrive", Stmt::MbarArrive { bar: bar(), tx: None }),
-        ("MbarCompleteTx", Stmt::MbarCompleteTx { bar: bar(), bytes: c(16) }),
-        ("MbarWait", Stmt::MbarWait { bar: bar(), parity: c(0) }),
+        (
+            "MbarInit",
+            Stmt::MbarInit {
+                bar: bar(),
+                count: c(1),
+            },
+        ),
+        (
+            "MbarArrive",
+            Stmt::MbarArrive {
+                bar: bar(),
+                tx: None,
+            },
+        ),
+        (
+            "MbarCompleteTx",
+            Stmt::MbarCompleteTx {
+                bar: bar(),
+                bytes: c(16),
+            },
+        ),
+        (
+            "MbarWait",
+            Stmt::MbarWait {
+                bar: bar(),
+                parity: c(0),
+            },
+        ),
         (
             "CopyBulk",
-            Stmt::CopyBulk { dst: bar(), src: bar(), elems: 4, bar: bar() },
+            Stmt::CopyBulk {
+                dst: bar(),
+                src: bar(),
+                elems: 4,
+                bar: bar(),
+            },
         ),
         ("Tcgen05Commit", Stmt::Tcgen05Commit { bar: bar() }),
         ("WgmmaWait", Stmt::WgmmaWait { pending: 0 }),
+        ("AsyncWait", Stmt::AsyncWait { pending: 0 }),
+        ("AsyncCommit", Stmt::AsyncCommit),
+        (
+            "CopyAsync",
+            Stmt::CopyAsync {
+                dst: bar(),
+                src: bar(),
+                elems: 4,
+                valid: None,
+                cache: Default::default(),
+                l2_prefetch: None,
+            },
+        ),
+        (
+            "Collective",
+            Stmt::Collective {
+                kind: CollectiveKind::Reduce(ReduceOp::Sum),
+                value: c(1),
+                result: 0,
+                scope: Scope::Subgroup,
+            },
+        ),
+        (
+            "CollectiveTuple",
+            Stmt::CollectiveTuple {
+                kind: CollectiveKind::Reduce(ReduceOp::Sum),
+                values: vec![c(1)],
+                results: vec![0],
+                scope: Scope::Subgroup,
+            },
+        ),
     ];
     let nest = |depth: u8, st: Stmt| -> Stmt {
         // 0: bare; 1: If.then; 2: For inside If.els; 3: While inside For inside If.then.
-        let wrap_while = |s: Stmt| Stmt::While { cond: c(1), body: Block(vec![s]) };
+        let wrap_while = |s: Stmt| Stmt::While {
+            cond: c(1),
+            body: Block(vec![s]),
+        };
         let wrap_for = |s: Stmt| Stmt::For {
             local: 0,
             start: c(0),
@@ -82,8 +147,16 @@ fn nvidia_sync_and_bulk_copy_statements_are_declined_by_name() {
         };
         match depth {
             0 => st,
-            1 => Stmt::If { cond: c(1), then: Block(vec![st]), els: Block(vec![]) },
-            2 => Stmt::If { cond: c(1), then: Block(vec![]), els: Block(vec![wrap_for(st)]) },
+            1 => Stmt::If {
+                cond: c(1),
+                then: Block(vec![st]),
+                els: Block(vec![]),
+            },
+            2 => Stmt::If {
+                cond: c(1),
+                then: Block(vec![]),
+                els: Block(vec![wrap_for(st)]),
+            },
             _ => Stmt::If {
                 cond: c(1),
                 then: Block(vec![wrap_for(wrap_while(st))]),

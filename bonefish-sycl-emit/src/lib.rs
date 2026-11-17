@@ -44,12 +44,12 @@ use unpopped::backend::{
     Backend, Decline, DeclinedOp, DtypeSupport, GeneratedKernel, LowerError, Lowering, Spelling,
     const_lit, lower_dag,
 };
-use unpopped::kernel::{Block, KernelFn, Stmt};
 use unpopped::cfamily::{
     binary_f32, binary_f64, dtype_tag, out_ctype_of, param_args, param_ctype, scalar_ctype,
     select_f32, select_f64, store_expr_of, unary_f32, unary_f64,
 };
 use unpopped::ir::{BinaryOp, DagNode, ExprDag, ScalarExpr, UnaryOp};
+use unpopped::kernel::{Block, KernelFn, Stmt};
 use unpopped::plan::{KernelPlan, Schedule};
 use unpopped_vocab::{ElementKind, TargetId};
 
@@ -66,6 +66,11 @@ const DECLINED_STMTS: &[&str] = &[
     "CopyBulk",
     "Tcgen05Commit",
     "WgmmaWait",
+    "AsyncWait",
+    "CopyAsync",
+    "AsyncCommit",
+    "Collective",
+    "CollectiveTuple",
 ];
 
 /// The first declined statement in `block`, searching `If`, `For` and `While` bodies to any depth.
@@ -80,7 +85,10 @@ fn find_declined(block: &Block) -> Option<&'static str> {
             return found;
         }
         let dbg = format!("{st:?}");
-        let name = dbg.split(|c: char| !c.is_alphanumeric()).next().unwrap_or("");
+        let name = dbg
+            .split(|c: char| !c.is_alphanumeric())
+            .next()
+            .unwrap_or("");
         if let Some(n) = DECLINED_STMTS.iter().find(|n| **n == name) {
             return Some(n);
         }
