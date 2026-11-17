@@ -69,20 +69,47 @@ fn nvidia_sync_and_bulk_copy_statements_are_declined_by_name() {
         ("Tcgen05Commit", Stmt::Tcgen05Commit { bar: bar() }),
         ("WgmmaWait", Stmt::WgmmaWait { pending: 0 }),
     ];
+    let nest = |depth: u8, st: Stmt| -> Stmt {
+        // 0: bare; 1: If.then; 2: For inside If.els; 3: While inside For inside If.then.
+        let wrap_while = |s: Stmt| Stmt::While { cond: c(1), body: Block(vec![s]) };
+        let wrap_for = |s: Stmt| Stmt::For {
+            local: 0,
+            start: c(0),
+            end: c(1),
+            step: c(1),
+            unroll: Default::default(),
+            body: Block(vec![s]),
+        };
+        match depth {
+            0 => st,
+            1 => Stmt::If { cond: c(1), then: Block(vec![st]), els: Block(vec![]) },
+            2 => Stmt::If { cond: c(1), then: Block(vec![]), els: Block(vec![wrap_for(st)]) },
+            _ => Stmt::If {
+                cond: c(1),
+                then: Block(vec![wrap_for(wrap_while(st))]),
+                els: Block(vec![]),
+            },
+        }
+    };
     for (name, st) in cases {
-        let k = KernelFn::new(
-            "nv_stmt",
-            i32k,
-            vec![Param::buffer("c", i32k, BufferRole::ReadWrite, Some(1))],
-            vec![],
-            Block(vec![st]),
-        );
-        match Sycl.lower_kernel(&k) {
-            Err(LowerError::UnsupportedKernel { detail }) => {
-                assert!(detail.contains(&format!("Stmt::{name}")), "{name}: {detail}");
-                assert!(detail.contains("nv_stmt"), "{name}: {detail}");
+        for depth in 0..=3u8 {
+            let k = KernelFn::new(
+                "nv_stmt",
+                i32k,
+                vec![Param::buffer("c", i32k, BufferRole::ReadWrite, Some(1))],
+                vec![],
+                Block(vec![nest(depth, st.clone())]),
+            );
+            match Sycl.lower_kernel(&k) {
+                Err(LowerError::UnsupportedKernel { detail }) => {
+                    assert!(
+                        detail.contains(&format!("Stmt::{name}")),
+                        "{name} depth {depth}: {detail}"
+                    );
+                    assert!(detail.contains("nv_stmt"), "{name} depth {depth}: {detail}");
+                }
+                other => panic!("{name} depth {depth}: expected UnsupportedKernel, got {other:?}"),
             }
-            other => panic!("{name}: expected UnsupportedKernel, got {other:?}"),
         }
     }
 }
