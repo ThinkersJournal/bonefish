@@ -47,3 +47,42 @@ fn a_kernel_with_an_atomic_is_refused_with_a_named_reason() {
         }
     }
 }
+
+/// unpopped 0.56.1's NVIDIA-shaped statements are declined BY NAME (CireSnave 2026-11-16 patent note).
+#[test]
+fn nvidia_sync_and_bulk_copy_statements_are_declined_by_name() {
+    let i32k = ElementKind::I32;
+    let bar = || Place::Logical {
+        buffer: 0,
+        coords: vec![ScalarExpr::ConstInt(0, i32k)],
+    };
+    let c = |v: i64| ScalarExpr::ConstInt(v, i32k);
+    let cases: Vec<(&str, Stmt)> = vec![
+        ("MbarInit", Stmt::MbarInit { bar: bar(), count: c(1) }),
+        ("MbarArrive", Stmt::MbarArrive { bar: bar(), tx: None }),
+        ("MbarCompleteTx", Stmt::MbarCompleteTx { bar: bar(), bytes: c(16) }),
+        ("MbarWait", Stmt::MbarWait { bar: bar(), parity: c(0) }),
+        (
+            "CopyBulk",
+            Stmt::CopyBulk { dst: bar(), src: bar(), elems: 4, bar: bar() },
+        ),
+        ("Tcgen05Commit", Stmt::Tcgen05Commit { bar: bar() }),
+        ("WgmmaWait", Stmt::WgmmaWait { pending: 0 }),
+    ];
+    for (name, st) in cases {
+        let k = KernelFn::new(
+            "nv_stmt",
+            i32k,
+            vec![Param::buffer("c", i32k, BufferRole::ReadWrite, Some(1))],
+            vec![],
+            Block(vec![st]),
+        );
+        match Sycl.lower_kernel(&k) {
+            Err(LowerError::UnsupportedKernel { detail }) => {
+                assert!(detail.contains(&format!("Stmt::{name}")), "{name}: {detail}");
+                assert!(detail.contains("nv_stmt"), "{name}: {detail}");
+            }
+            other => panic!("{name}: expected UnsupportedKernel, got {other:?}"),
+        }
+    }
+}

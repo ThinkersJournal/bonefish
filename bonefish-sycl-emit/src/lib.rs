@@ -10,7 +10,9 @@
 //! - Schedule: [`Schedule::Scalar`] only (the contiguous, single-output elementwise cell).
 //!   Every other schedule is [`LowerError::UnsupportedSchedule`].
 //! - Kernel layer: none. `Backend::lower_kernel` is not overridden, so any `KernelFn` (including
-//!   unpopped 0.40's `Stmt::AtomicRmw`) is refused with `LowerError::UnsupportedKernel`; a future
+//!   unpopped 0.40's `Stmt::AtomicRmw`) is refused with `LowerError::UnsupportedKernel`; top-level
+//!   `MbarInit`/`MbarArrive`/`MbarCompleteTx`/`MbarWait`/`CopyBulk`/`Tcgen05Commit`/`WgmmaWait` (unpopped 0.56.1)
+//!   are named in that reason; a future
 //!   path would spell an atomic with `sycl::atomic_ref` (`fetch_add` / `fetch_max` / `fetch_min`).
 //! - Body nodes: input, constant, parameter, `+ - * /`, unary, binary, select, fma. A body with
 //!   casts, bitcasts, qualifiers, locals, coordinates, reductions or packs is refused
@@ -42,6 +44,7 @@ use unpopped::backend::{
     Backend, Decline, DeclinedOp, DtypeSupport, GeneratedKernel, LowerError, Lowering, Spelling,
     const_lit, lower_dag,
 };
+use unpopped::kernel::KernelFn;
 use unpopped::cfamily::{
     binary_f32, binary_f64, dtype_tag, out_ctype_of, param_args, param_ctype, scalar_ctype,
     select_f32, select_f64, store_expr_of, unary_f32, unary_f64,
@@ -61,6 +64,42 @@ impl Backend for Sycl {
 
     fn provider(&self) -> &str {
         "bonefish"
+    }
+
+    fn lower_kernel(&self, kernel: &KernelFn) -> Result<GeneratedKernel, LowerError> {
+        // No kernel-layer path: every kernel is refused. A top-level statement of a family that has
+        // no Intel counterpart here is named in the reason (NVIDIA mbarrier / bulk-copy / wgmma /
+        // tcgen05; CireSnave 2026-11-16 patent note on unpopped's `Stmt::MbarInit`).
+        const DECLINED: &[&str] = &[
+            "MbarInit",
+            "MbarArrive",
+            "MbarCompleteTx",
+            "MbarWait",
+            "CopyBulk",
+            "Tcgen05Commit",
+            "WgmmaWait",
+        ];
+        for st in &kernel.body.0 {
+            let dbg = format!("{st:?}");
+            let name = dbg
+                .split(|c: char| !c.is_alphanumeric())
+                .next()
+                .unwrap_or("");
+            if DECLINED.contains(&name) {
+                return Err(LowerError::UnsupportedKernel {
+                    detail: format!(
+                        "backend `sycl` declines `Stmt::{name}` by name (no SYCL lowering; kernel `{}`)",
+                        kernel.name
+                    ),
+                });
+            }
+        }
+        Err(LowerError::UnsupportedKernel {
+            detail: format!(
+                "backend `sycl` does not lower kernel-layer kernels (kernel `{}`)",
+                kernel.name
+            ),
+        })
     }
 
     fn supports_dtype(&self, dtype: ElementKind, _target: TargetId) -> DtypeSupport {
