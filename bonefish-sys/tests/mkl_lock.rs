@@ -107,6 +107,34 @@ const MKL_FUNCS: &[&str] = &[
     "bf_drot_async",
     "bf_dger",
     "bf_dger_async",
+    "bf_srotm",
+    "bf_srotm_async",
+    "bf_ssymv",
+    "bf_ssymv_async",
+    "bf_ssyr",
+    "bf_ssyr_async",
+    "bf_ssyr2",
+    "bf_ssyr2_async",
+    "bf_strmv",
+    "bf_strmv_async",
+    "bf_strsv",
+    "bf_strsv_async",
+    "bf_sgbmv",
+    "bf_sgbmv_async",
+    "bf_drotm",
+    "bf_drotm_async",
+    "bf_dsymv",
+    "bf_dsymv_async",
+    "bf_dsyr",
+    "bf_dsyr_async",
+    "bf_dsyr2",
+    "bf_dsyr2_async",
+    "bf_dtrmv",
+    "bf_dtrmv_async",
+    "bf_dtrsv",
+    "bf_dtrsv_async",
+    "bf_dgbmv",
+    "bf_dgbmv_async",
 ];
 
 /// Functions that do not call oneMKL (SYCL runtime calls and bookkeeping).
@@ -559,6 +587,109 @@ mod counter {
             bf_diamin_async,
             bf_drot_async,
             bf_dger_async
+        );
+
+        // rotm, symv, syr, syr2, trmv, trsv, gbmv: blocking and non-blocking, both precisions.
+        macro_rules! l2_calls {
+            ($t:ty, $rotm:ident, $symv:ident, $syr:ident, $syr2:ident, $trmv:ident, $trsv:ident, $gbmv:ident, $rotm_a:ident, $symv_a:ident, $syr_a:ident, $syr2_a:ident, $trmv_a:ident, $trsv_a:ident, $gbmv_a:ident) => {{
+                let sz = std::mem::size_of::<$t>() as i64;
+                let (x, y, m) = (
+                    Usm::new(q, 16 * sz),
+                    Usm::new(q, 16 * sz),
+                    Usm::new(q, 16 * sz),
+                );
+                let (xp, yp, mp) = (x.p.cast::<$t>(), y.p.cast::<$t>(), m.p.cast::<$t>());
+                let none: *const *mut c_void = std::ptr::null();
+                macro_rules! pair {
+                    ($blk:ident, $asy:ident, $bcall:expr, $acall:expr) => {{
+                        seen.push(stringify!($blk));
+                        let (d, rc) = moved(|| unsafe { $bcall });
+                        assert_eq!((rc, d), (0, 1), "{}", stringify!($blk));
+                        seen.push(stringify!($asy));
+                        let (d, ev) = moved(|| unsafe { $acall });
+                        assert!(!ev.is_null(), "{} returned no event", stringify!($asy));
+                        assert_eq!(d, 1, "{} moved the counter by {d}, not 1", stringify!($asy));
+                        assert_eq!(unsafe { bf_event_wait(ev) }, 0, "{}", stringify!($asy));
+                        unsafe { bf_event_free(ev) };
+                    }};
+                }
+                pair!(
+                    $rotm,
+                    $rotm_a,
+                    $rotm(q, 2, xp, 1, yp, 1, mp),
+                    $rotm_a(q, 2, xp, 1, yp, 1, mp, none, 0)
+                );
+                pair!(
+                    $symv,
+                    $symv_a,
+                    $symv(q, 0, 2, 1.0, mp, 2, xp, 1, 0.0, yp, 1),
+                    $symv_a(q, 0, 2, 1.0, mp, 2, xp, 1, 0.0, yp, 1, none, 0)
+                );
+                pair!(
+                    $syr,
+                    $syr_a,
+                    $syr(q, 0, 2, 1.0, xp, 1, mp, 2),
+                    $syr_a(q, 0, 2, 1.0, xp, 1, mp, 2, none, 0)
+                );
+                pair!(
+                    $syr2,
+                    $syr2_a,
+                    $syr2(q, 0, 2, 1.0, xp, 1, yp, 1, mp, 2),
+                    $syr2_a(q, 0, 2, 1.0, xp, 1, yp, 1, mp, 2, none, 0)
+                );
+                pair!(
+                    $trmv,
+                    $trmv_a,
+                    $trmv(q, 0, 0, 0, 2, mp, 2, xp, 1),
+                    $trmv_a(q, 0, 0, 0, 2, mp, 2, xp, 1, none, 0)
+                );
+                pair!(
+                    $trsv,
+                    $trsv_a,
+                    $trsv(q, 0, 0, 0, 2, mp, 2, xp, 1),
+                    $trsv_a(q, 0, 0, 0, 2, mp, 2, xp, 1, none, 0)
+                );
+                pair!(
+                    $gbmv,
+                    $gbmv_a,
+                    $gbmv(q, 0, 2, 2, 0, 0, 1.0, mp, 1, xp, 1, 0.0, yp, 1),
+                    $gbmv_a(q, 0, 2, 2, 0, 0, 1.0, mp, 1, xp, 1, 0.0, yp, 1, none, 0)
+                );
+            }};
+        }
+        l2_calls!(
+            f32,
+            bf_srotm,
+            bf_ssymv,
+            bf_ssyr,
+            bf_ssyr2,
+            bf_strmv,
+            bf_strsv,
+            bf_sgbmv,
+            bf_srotm_async,
+            bf_ssymv_async,
+            bf_ssyr_async,
+            bf_ssyr2_async,
+            bf_strmv_async,
+            bf_strsv_async,
+            bf_sgbmv_async
+        );
+        l2_calls!(
+            f64,
+            bf_drotm,
+            bf_dsymv,
+            bf_dsyr,
+            bf_dsyr2,
+            bf_dtrmv,
+            bf_dtrsv,
+            bf_dgbmv,
+            bf_drotm_async,
+            bf_dsymv_async,
+            bf_dsyr_async,
+            bf_dsyr2_async,
+            bf_dtrmv_async,
+            bf_dtrsv_async,
+            bf_dgbmv_async
         );
 
         // Non-blocking DFT compute: a plan, one async compute, wait, free.

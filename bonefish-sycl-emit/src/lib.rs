@@ -10,7 +10,9 @@
 //! - Schedule: [`Schedule::Scalar`] only (the contiguous, single-output elementwise cell).
 //!   Every other schedule is [`LowerError::UnsupportedSchedule`].
 //! - Kernel layer: none. `Backend::lower_kernel` is not overridden, so any `KernelFn` (including
-//!   unpopped 0.40's `Stmt::AtomicRmw`) is refused with `LowerError::UnsupportedKernel`; a future
+//!   unpopped 0.40's `Stmt::AtomicRmw`) is refused with `LowerError::UnsupportedKernel`; top-level
+//!   `MbarInit`/`MbarArrive`/`MbarCompleteTx`/`MbarWait`/`CopyBulk`/`Tcgen05Commit`/`WgmmaWait` (unpopped 0.56.1)
+//!   are named in that reason; a future
 //!   path would spell an atomic with `sycl::atomic_ref` (`fetch_add` / `fetch_max` / `fetch_min`).
 //! - Body nodes: input, constant, parameter, `+ - * /`, unary, binary, select, fma. A body with
 //!   casts, bitcasts, qualifiers, locals, coordinates, reductions or packs is refused
@@ -47,12 +49,52 @@ use unpopped::cfamily::{
     select_f32, select_f64, store_expr_of, unary_f32, unary_f64,
 };
 use unpopped::ir::{BinaryOp, DagNode, ExprDag, ScalarExpr, UnaryOp};
+use unpopped::kernel::{Block, KernelFn, Stmt};
 use unpopped::plan::{KernelPlan, Schedule};
 use unpopped_vocab::{ElementKind, TargetId};
 
 /// The SYCL/DPC++ backend. Lowers a [`KernelPlan`] to SYCL C++ source.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Sycl;
+
+/// Statements declined by name: no SYCL lowering exists for them.
+const DECLINED_STMTS: &[&str] = &[
+    "MbarInit",
+    "MbarArrive",
+    "MbarCompleteTx",
+    "MbarWait",
+    "CopyBulk",
+    "Tcgen05Commit",
+    "WgmmaWait",
+    "AsyncWait",
+    "CopyAsync",
+    "AsyncCommit",
+    "Collective",
+    "CollectiveTuple",
+];
+
+/// The first declined statement in `block`, searching `If`, `For` and `While` bodies to any depth.
+fn find_declined(block: &Block) -> Option<&'static str> {
+    for st in &block.0 {
+        let found = match st {
+            Stmt::If { then, els, .. } => find_declined(then).or_else(|| find_declined(els)),
+            Stmt::For { body, .. } | Stmt::While { body, .. } => find_declined(body),
+            _ => None,
+        };
+        if found.is_some() {
+            return found;
+        }
+        let dbg = format!("{st:?}");
+        let name = dbg
+            .split(|c: char| !c.is_alphanumeric())
+            .next()
+            .unwrap_or("");
+        if let Some(n) = DECLINED_STMTS.iter().find(|n| **n == name) {
+            return Some(n);
+        }
+    }
+    None
+}
 
 impl Backend for Sycl {
     fn name(&self) -> &str {
@@ -61,6 +103,26 @@ impl Backend for Sycl {
 
     fn provider(&self) -> &str {
         "bonefish"
+    }
+
+    fn lower_kernel(&self, kernel: &KernelFn) -> Result<GeneratedKernel, LowerError> {
+        // No kernel-layer path: every kernel is refused. A statement of a family that has no Intel
+        // counterpart here is named in the reason at any depth (NVIDIA mbarrier / bulk-copy / wgmma /
+        // tcgen05; CireSnave 2026-11-16 patent note on unpopped's `Stmt::MbarInit`).
+        if let Some(name) = find_declined(&kernel.body) {
+            return Err(LowerError::UnsupportedKernel {
+                detail: format!(
+                    "backend `sycl` declines `Stmt::{name}` by name (no SYCL lowering; kernel `{}`)",
+                    kernel.name
+                ),
+            });
+        }
+        Err(LowerError::UnsupportedKernel {
+            detail: format!(
+                "backend `sycl` does not lower kernel-layer kernels (kernel `{}`)",
+                kernel.name
+            ),
+        })
     }
 
     fn supports_dtype(&self, dtype: ElementKind, _target: TargetId) -> DtypeSupport {
