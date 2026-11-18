@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.37
+
+- `bonefish-sys` shim (R2, blocking and async, `f32` and `f64`): level 2 `rotm`, `symv`, `syr`, `syr2`, `trmv`, `trsv`, `gbmv`. Hand-value tests in `tests/blas_ext.rs`; lock classification in `tests/mkl_lock.rs`. Not in the safe API yet (R3).
+- `bonefish-sycl-emit` and `bonefish-sycl-parse`: **unpopped, unpopped-vocab and unpopped-convert 0.47.0 -> 0.56.1** (exact pins; pre-1.0 upstream, notice from pm-kernels).
+- `bonefish-sycl-emit`: `Sycl::lower_kernel` declines BY NAME, at any depth inside `If`/`For`/`While`, `MbarInit`, `MbarArrive`, `MbarCompleteTx`, `MbarWait`, `CopyBulk`, `Tcgen05Commit`, `WgmmaWait`, `AsyncWait`, `CopyAsync`, `AsyncCommit`, `Collective` and `CollectiveTuple`. Test `nvidia_sync_and_bulk_copy_statements_are_declined_by_name` (12 names x 4 depths), mutation-checked per name and per recursion arm. `CollectiveTuple` is the tuple form of `Collective`: 434 C read as covering it; not named in the ruling's list.
+- Version number is a placeholder for the PM (stacks after 0.0.36, which is #37).
+
 ## 0.0.36
 
 - `bonefish-sys` shim (R2, blocking and async, `f32` and `f64`): level 1 `iamin` (zero-based, first on ties) and `rot` (Givens rotation), level 2 `ger` (rank-one update). New `tests/blas_ext.rs` (hand values, strided and error cases, both precisions) and the oneMKL lock classification and counter test cover all twelve entry points. CPU/OpenCL device only; GPU UNVERIFIED. No safe-API wrapper yet (R3).
