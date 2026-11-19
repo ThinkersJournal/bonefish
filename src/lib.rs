@@ -4,6 +4,8 @@
 //! - [`UsmBuffer`]: typed unified shared memory owned by a queue.
 //! - [`blas::gemm`]: matrix multiply, `f32`, `f64`, `Complex<f32>` and `Complex<f64>`; level 1 and `gemv` ([`blas::axpy`],
 //!   [`blas::dot`], [`blas::nrm2`], ...), blocking.
+//! - [`level2`]: `rotm`, `symv`, `syr`, `syr2`, `trmv`, `trsv`, `gbmv`, `f32` and `f64`, blocking; the
+//!   non-blocking forms are on [`Scope`].
 //! - [`Dft`]: complex-to-complex FFTs, `f32` and `f64`, 1-D and N-D.
 //! - [`RealDft`]: real-to-complex and complex-to-real FFTs (half spectrum), `f32` and `f64`, 1-D and
 //!   N-D, out of place.
@@ -28,6 +30,7 @@ pub mod blas;
 mod device;
 mod dft;
 mod error;
+pub mod level2;
 mod queue;
 mod rdft;
 mod scalar;
@@ -39,6 +42,7 @@ pub use blas::Transpose;
 pub use device::{DeviceInfo, DeviceType, find_by_pci_address, find_by_uuid};
 pub use dft::{Dft, Placement};
 pub use error::{Error, Result};
+pub use level2::{Diag, Level2, Uplo};
 pub use queue::{DeviceKind, Queue};
 pub use rdft::RealDft;
 pub use scalar::{BlasElement, Complex, Element, GemmElement, Scalar};
