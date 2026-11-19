@@ -50,7 +50,7 @@ fn a_kernel_with_an_atomic_is_refused_with_a_named_reason() {
     }
 }
 
-/// unpopped 0.56.1's NVIDIA-shaped statements are declined BY NAME (CireSnave 2026-11-16 patent note).
+/// unpopped 0.56.2's NVIDIA-shaped statements are declined BY NAME (CireSnave 2026-11-16 patent note).
 #[test]
 fn nvidia_sync_and_bulk_copy_statements_are_declined_by_name() {
     let i32k = ElementKind::I32;

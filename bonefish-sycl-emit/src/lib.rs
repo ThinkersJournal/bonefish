@@ -11,7 +11,7 @@
 //!   Every other schedule is [`LowerError::UnsupportedSchedule`].
 //! - Kernel layer: none. `Backend::lower_kernel` is not overridden, so any `KernelFn` (including
 //!   unpopped 0.40's `Stmt::AtomicRmw`) is refused with `LowerError::UnsupportedKernel`; top-level
-//!   `MbarInit`/`MbarArrive`/`MbarCompleteTx`/`MbarWait`/`CopyBulk`/`Tcgen05Commit`/`WgmmaWait` (unpopped 0.56.1)
+//!   `MbarInit`/`MbarArrive`/`MbarCompleteTx`/`MbarWait`/`CopyBulk`/`Tcgen05Commit`/`WgmmaWait` (unpopped 0.56.2)
 //!   are named in that reason; a future
 //!   path would spell an atomic with `sycl::atomic_ref` (`fetch_add` / `fetch_max` / `fetch_min`).
 //! - Body nodes: input, constant, parameter, `+ - * /`, unary, binary, select, fma. A body with
