@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.38
+
+- `bonefish-sycl-emit` and `bonefish-sycl-parse`: **unpopped, unpopped-vocab and unpopped-convert 0.56.1 -> 0.56.2** (exact pins; latest on crates.io, PM notice 2026-11-18). Local tests CPU/OpenCL device only.
+- Version number is a placeholder for the PM (stacks after 0.0.37, which is #38).
+
 ## 0.0.37
 
 - `bonefish-sys` shim (R2, blocking and async, `f32` and `f64`): level 2 `rotm`, `symv`, `syr`, `syr2`, `trmv`, `trsv`, `gbmv`. Hand-value tests in `tests/blas_ext.rs`; lock classification in `tests/mkl_lock.rs`. Not in the safe API yet (R3).
