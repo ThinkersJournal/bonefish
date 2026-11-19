@@ -1,0 +1,158 @@
+//! Foreign declarations: level 3 BLAS (`gemm`). Split out of `lib.rs` (R15).
+
+use std::ffi::c_void;
+
+unsafe extern "C" {
+    /// Column-major, blocking. `ta`/`tb`: 0 N, 1 T, 2 C.
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_sgemm(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f32,
+        a: *const f32,
+        lda: i64,
+        b: *const f32,
+        ldb: i64,
+        beta: f32,
+        c: *mut f32,
+        ldc: i64,
+    ) -> i32;
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_dgemm(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f64,
+        a: *const f64,
+        lda: i64,
+        b: *const f64,
+        ldb: i64,
+        beta: f64,
+        c: *mut f64,
+        ldc: i64,
+    ) -> i32;
+    /// Non-blocking `gemm`: returns the event (null on failure). The device may still be
+    /// reading and writing the operands when this returns; the caller keeps them alive and
+    /// untouched until the event or the queue has been waited on. `deps` points at `n_deps`
+    /// event handles to wait for (null with 0 for none).
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_sgemm_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f32,
+        a: *const f32,
+        lda: i64,
+        b: *const f32,
+        ldb: i64,
+        beta: f32,
+        c: *mut f32,
+        ldc: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_dgemm_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f64,
+        a: *const f64,
+        lda: i64,
+        b: *const f64,
+        ldb: i64,
+        beta: f64,
+        c: *mut f64,
+        ldc: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+    /// Complex `gemm` (`c` single, `z` double). Complex data is interleaved (re, im); `alpha`
+    /// and `beta` are passed by POINTER to two reals, never by value. `*_async` return the event
+    /// (null on failure) and take a dependency array; the others block.
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_cgemm(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: *const f32,
+        a: *const f32,
+        lda: i64,
+        b: *const f32,
+        ldb: i64,
+        beta: *const f32,
+        c: *mut f32,
+        ldc: i64,
+    ) -> i32;
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_zgemm(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: *const f64,
+        a: *const f64,
+        lda: i64,
+        b: *const f64,
+        ldb: i64,
+        beta: *const f64,
+        c: *mut f64,
+        ldc: i64,
+    ) -> i32;
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_cgemm_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: *const f32,
+        a: *const f32,
+        lda: i64,
+        b: *const f32,
+        ldb: i64,
+        beta: *const f32,
+        c: *mut f32,
+        ldc: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_zgemm_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: *const f64,
+        a: *const f64,
+        lda: i64,
+        b: *const f64,
+        ldb: i64,
+        beta: *const f64,
+        c: *mut f64,
+        ldc: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+}
