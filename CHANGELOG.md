@@ -3,6 +3,7 @@
 ## 0.0.40
 
 - `bonefish-sys` shim (R2, blocking and async, `f32` and `f64`): level 3 `symm`, `syrk`, `syr2k`, `trmm`, `trsm` (side 0 left / 1 right, uplo 0 upper / 1 lower, diag 0 non-unit / 1 unit). New `tests/level3.rs` (8 hand-value tests, the untouched triangle poisoned, trmm/trsm round trip, unit diagonal) and the oneMKL lock classification and counter test cover all twenty entry points. CPU/OpenCL device only; GPU UNVERIFIED. Batched, half/bf16 and complex level 3 not yet in the shim; no safe-API wrapper yet (R3).
+- `bonefish` (R3): safe level 3 API for `f32` and `f64`: blocking `level3::{symm, syrk, syr2k, trmm, trsm}` and the same on `Scope`, with `Side`. Extents (the special matrix is `m x m` on the left, `n x n` on the right; `syrk`/`syr2k` operands `n x k` or `k x n`) and output aliasing are checked in Rust. New `tests/level3.rs`: 5 hand-value and error tests. CPU/OpenCL only; GPU UNVERIFIED. Batched, half/bf16 and complex level 3 not done.
 - Version number is a placeholder for the PM (stacks after 0.0.39, which is #41).
 
 ## 0.0.39
