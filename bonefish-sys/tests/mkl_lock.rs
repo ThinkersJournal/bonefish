@@ -135,6 +135,26 @@ const MKL_FUNCS: &[&str] = &[
     "bf_dtrsv_async",
     "bf_dgbmv",
     "bf_dgbmv_async",
+    "bf_ssymm",
+    "bf_ssymm_async",
+    "bf_ssyrk",
+    "bf_ssyrk_async",
+    "bf_ssyr2k",
+    "bf_ssyr2k_async",
+    "bf_strmm",
+    "bf_strmm_async",
+    "bf_strsm",
+    "bf_strsm_async",
+    "bf_dsymm",
+    "bf_dsymm_async",
+    "bf_dsyrk",
+    "bf_dsyrk_async",
+    "bf_dsyr2k",
+    "bf_dsyr2k_async",
+    "bf_dtrmm",
+    "bf_dtrmm_async",
+    "bf_dtrsm",
+    "bf_dtrsm_async",
 ];
 
 /// Functions that do not call oneMKL (SYCL runtime calls and bookkeeping).
@@ -705,6 +725,45 @@ mod counter {
             bf_dtrmv_async,
             bf_dtrsv_async,
             bf_dgbmv_async
+        );
+
+        // symm, syrk, syr2k, trmm, trsm: blocking and non-blocking, both precisions.
+        macro_rules! l3_calls {
+            ($t:ty, $xp:ident, $yp:ident, $mp:ident, $($blk:ident, $asy:ident, ($($arg:expr),*), ($($arg_a:expr),*));+ $(;)?) => {{
+                let sz = std::mem::size_of::<$t>() as i64;
+                let (x, y, m) = (
+                    Usm::new(q, 16 * sz),
+                    Usm::new(q, 16 * sz),
+                    Usm::new(q, 16 * sz),
+                );
+                let ($xp, $yp, $mp) = (x.p.cast::<$t>(), y.p.cast::<$t>(), m.p.cast::<$t>());
+                let none: *const *mut c_void = std::ptr::null();
+                $(
+                    seen.push(stringify!($blk));
+                    let (d, rc) = moved(|| unsafe { $blk(q, $($arg),*) });
+                    assert_eq!((rc, d), (0, 1), "{}", stringify!($blk));
+                    seen.push(stringify!($asy));
+                    let (d, ev) = moved(|| unsafe { $asy(q, $($arg_a),*, none, 0) });
+                    assert!(!ev.is_null(), "{} returned no event", stringify!($asy));
+                    assert_eq!(d, 1, "{} moved the counter by {d}, not 1", stringify!($asy));
+                    assert_eq!(unsafe { bf_event_wait(ev) }, 0, "{}", stringify!($asy));
+                    unsafe { bf_event_free(ev) };
+                )+
+            }};
+        }
+        l3_calls!(f32, xp, yp, mp,
+            bf_ssymm, bf_ssymm_async, (0, 0, 2, 2, 1.0, mp, 2, xp, 2, 0.0, yp, 2), (0, 0, 2, 2, 1.0, mp, 2, xp, 2, 0.0, yp, 2);
+            bf_ssyrk, bf_ssyrk_async, (0, 0, 2, 1, 1.0, mp, 2, 0.0, yp, 2), (0, 0, 2, 1, 1.0, mp, 2, 0.0, yp, 2);
+            bf_ssyr2k, bf_ssyr2k_async, (0, 0, 2, 1, 1.0, mp, 2, xp, 2, 0.0, yp, 2), (0, 0, 2, 1, 1.0, mp, 2, xp, 2, 0.0, yp, 2);
+            bf_strmm, bf_strmm_async, (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2), (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2);
+            bf_strsm, bf_strsm_async, (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2), (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2)
+        );
+        l3_calls!(f64, xp, yp, mp,
+            bf_dsymm, bf_dsymm_async, (0, 0, 2, 2, 1.0, mp, 2, xp, 2, 0.0, yp, 2), (0, 0, 2, 2, 1.0, mp, 2, xp, 2, 0.0, yp, 2);
+            bf_dsyrk, bf_dsyrk_async, (0, 0, 2, 1, 1.0, mp, 2, 0.0, yp, 2), (0, 0, 2, 1, 1.0, mp, 2, 0.0, yp, 2);
+            bf_dsyr2k, bf_dsyr2k_async, (0, 0, 2, 1, 1.0, mp, 2, xp, 2, 0.0, yp, 2), (0, 0, 2, 1, 1.0, mp, 2, xp, 2, 0.0, yp, 2);
+            bf_dtrmm, bf_dtrmm_async, (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2), (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2);
+            bf_dtrsm, bf_dtrsm_async, (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2), (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2)
         );
 
         // Non-blocking DFT compute: a plan, one async compute, wait, free.

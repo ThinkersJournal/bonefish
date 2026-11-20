@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.40
+
+- `bonefish-sys` shim (R2, blocking and async, `f32` and `f64`): level 3 `symm`, `syrk`, `syr2k`, `trmm`, `trsm` (side 0 left / 1 right, uplo 0 upper / 1 lower, diag 0 non-unit / 1 unit). New `tests/level3.rs` (8 hand-value tests, the untouched triangle poisoned, trmm/trsm round trip, unit diagonal) and the oneMKL lock classification and counter test cover all twenty entry points. CPU/OpenCL device only; GPU UNVERIFIED. Batched, half/bf16 and complex level 3 not yet in the shim; no safe-API wrapper yet (R3).
+- Version number is a placeholder for the PM (stacks after 0.0.39, which is #41).
+
 ## 0.0.39
 
 - `bonefish` (R3): safe level 2 API for `f32` and `f64`: blocking `level2::{rotm, symv, syr, syr2, trmv, trsv, gbmv}` and the same on `Scope` (non-blocking, chained like the other scope operations), with `Uplo` and `Diag`. Extents, band storage (`lda >= kl + ku + 1`), `rotm` parameter length (5) and write/read aliasing are checked in Rust. New `tests/level2.rs`: 9 hand-value tests, the unreferenced triangle poisoned. CPU/OpenCL device only; GPU UNVERIFIED. Complex Hermitian counterparts not wrapped.
