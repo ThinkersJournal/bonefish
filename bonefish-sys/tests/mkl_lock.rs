@@ -8,7 +8,7 @@
 //! How it is checked, in two parts:
 //!
 //! 1. **Classification (no device needed, always runs).** Every foreign function declared in
-//!    `src/lib.rs` must be named in exactly one of `MKL_FUNCS` / `NOT_MKL_FUNCS` below, and every
+//!    `src/ffi/*.rs` must be named in exactly one of `MKL_FUNCS` / `NOT_MKL_FUNCS` below, and every
 //!    name below must still be declared. Adding a shim function without classifying it fails here,
 //!    so it cannot go unexamined.
 //! 2. **Counter (needs a device).** The shim exports `bf_mkl_lock_acquisitions`, which counts
@@ -161,15 +161,30 @@ const NOT_MKL_FUNCS: &[&str] = &[
     "bf_mkl_lock_acquisitions",
 ];
 
-/// The foreign functions `src/lib.rs` declares. The stand-ins used without oneAPI are written
-/// `pub unsafe extern "C" fn`, so only the real declarations (`pub fn bf_...(`) match.
+/// The foreign functions `src/ffi/*.rs` declare (split out of `lib.rs` by operation family, R15).
+/// The stand-ins used without oneAPI live in `src/stub/` and are written `pub unsafe extern "C"
+/// fn`, so only the real declarations (`pub fn bf_...(`) match.
 fn declared_ffi_names() -> BTreeSet<String> {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs");
-    let src = std::fs::read_to_string(path).expect("read src/lib.rs");
-    src.lines()
-        .filter_map(|l| l.trim_start().strip_prefix("pub fn bf_"))
-        .filter_map(|rest| rest.split('(').next())
-        .map(|n| format!("bf_{n}"))
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/src/ffi");
+    let mut files: Vec<_> = std::fs::read_dir(dir)
+        .expect("read src/ffi")
+        .map(|e| e.expect("directory entry").path())
+        .filter(|p| p.extension().is_some_and(|x| x == "rs"))
+        .collect();
+    files.sort();
+    // Positive control for the enumeration: more than one family file was read.
+    assert!(files.len() >= 5, "src/ffi has too few files: {files:?}");
+    files
+        .iter()
+        .flat_map(|path| {
+            std::fs::read_to_string(path)
+                .unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
+                .lines()
+                .filter_map(|l| l.trim_start().strip_prefix("pub fn bf_"))
+                .filter_map(|rest| rest.split('(').next())
+                .map(|n| format!("bf_{n}"))
+                .collect::<Vec<_>>()
+        })
         .collect()
 }
 
@@ -179,7 +194,7 @@ fn every_declared_shim_function_is_classified_exactly_once() {
     // Positive control for the parser: it sees functions we know are declared.
     assert!(
         declared.contains("bf_sgemm") && declared.contains("bf_queue_new"),
-        "the lib.rs parser found nothing useful: {declared:?}"
+        "the src/ffi parser found nothing useful: {declared:?}"
     );
     let mkl: BTreeSet<String> = MKL_FUNCS.iter().map(|s| s.to_string()).collect();
     let not_mkl: BTreeSet<String> = NOT_MKL_FUNCS.iter().map(|s| s.to_string()).collect();
@@ -192,14 +207,14 @@ fn every_declared_shim_function_is_classified_exactly_once() {
     let unclassified: Vec<_> = declared.difference(&classified).collect();
     assert!(
         unclassified.is_empty(),
-        "shim functions declared in src/lib.rs but not classified in tests/mkl_lock.rs: \
+        "shim functions declared in src/ffi but not classified in tests/mkl_lock.rs: \
          {unclassified:?}. Decide whether each calls oneMKL; if it does it must use \
          bf::guard_mkl / bf::MklLock and go in MKL_FUNCS."
     );
     let stale: Vec<_> = classified.difference(&declared).collect();
     assert!(
         stale.is_empty(),
-        "classified here but no longer declared in src/lib.rs: {stale:?}"
+        "classified here but no longer declared in src/ffi: {stale:?}"
     );
 }
 
