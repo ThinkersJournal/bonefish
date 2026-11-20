@@ -4,7 +4,6 @@
 
 - `bonefish` (R3): safe level 2 API for `f32` and `f64`: blocking `level2::{rotm, symv, syr, syr2, trmv, trsv, gbmv}` and the same on `Scope` (non-blocking, chained like the other scope operations), with `Uplo` and `Diag`. Extents, band storage (`lda >= kl + ku + 1`), `rotm` parameter length (5) and write/read aliasing are checked in Rust. New `tests/level2.rs`: 9 hand-value tests, the unreferenced triangle poisoned. CPU/OpenCL device only; GPU UNVERIFIED. Complex Hermitian counterparts not wrapped.
 - `bonefish-sys` `tests/dftr.rs`: every test body now runs under a 120 s timeout so a hang fails by name (issue #40, a once-seen ~1 h hang of the whole file in a full run; not reproduced, cause unknown).
-- Version number is a placeholder for the PM (stacks after 0.0.38, which is #39).
 
 ## 0.0.38
 
