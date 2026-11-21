@@ -16,17 +16,53 @@ use std::ffi::{CStr, c_void};
 /// is a failed test with a name, not a stalled run. The stuck thread is left behind: the test
 /// process exits when the harness finishes.
 fn guarded<F: FnOnce() + Send + 'static>(body: F) {
-    const LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
+    guarded_for(std::time::Duration::from_secs(120), body);
+}
+
+/// `guarded` with the limit injected, so the timeout path itself can be tested.
+fn guarded_for<F: FnOnce() + Send + 'static>(limit: std::time::Duration, body: F) {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
         let _ = tx.send(r);
     });
-    match rx.recv_timeout(LIMIT) {
+    match rx.recv_timeout(limit) {
         Ok(Ok(())) => {}
         Ok(Err(panic)) => std::panic::resume_unwind(panic),
-        Err(_) => panic!("test body did not finish within {LIMIT:?} (see bonefish#40)"),
+        Err(_) => panic!("test body did not finish within {limit:?} (see bonefish#40)"),
     }
+}
+
+/// The guard fires on a body that overruns its limit, and returns long before the body would
+/// have (the body sleeps 10 s, so without the guard this test would take 10 s, not under 3 s),
+/// and it passes quick bodies and re-raises their panics (controls: it neither misfires nor
+/// swallows).
+#[test]
+fn guard_fires_on_overrun_and_not_otherwise() {
+    use std::time::{Duration, Instant};
+    let t0 = Instant::now();
+    let r = std::panic::catch_unwind(|| {
+        guarded_for(Duration::from_millis(200), || {
+            std::thread::sleep(Duration::from_secs(10))
+        })
+    });
+    let took = t0.elapsed();
+    let msg = r
+        .expect_err("the overrunning body must fail")
+        .downcast::<String>()
+        .expect("a formatted panic message");
+    assert!(msg.contains("did not finish within"), "{msg}");
+    assert!(msg.contains("bonefish#40"), "{msg}");
+    assert!(took < Duration::from_secs(3), "guard took {took:?}");
+    // Control 1: a quick body passes under the same limit.
+    guarded_for(Duration::from_millis(200), || {});
+    // Control 2: a body's own panic comes through as itself, not as a timeout.
+    let r = std::panic::catch_unwind(|| guarded_for(Duration::from_secs(5), || panic!("boom")));
+    let msg = r
+        .expect_err("must panic")
+        .downcast::<&str>()
+        .expect("a &str panic");
+    assert_eq!(*msg, "boom");
 }
 
 fn err() -> String {

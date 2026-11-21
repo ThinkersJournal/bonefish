@@ -6,6 +6,8 @@
 //!   [`blas::dot`], [`blas::nrm2`], ...), blocking.
 //! - [`level2`]: `rotm`, `symv`, `syr`, `syr2`, `trmv`, `trsv`, `gbmv`, `f32` and `f64`, blocking; the
 //!   non-blocking forms are on [`Scope`].
+//! - [`level3`]: `symm`, `syrk`, `syr2k`, `trmm`, `trsm`, `f32` and `f64`, blocking; the non-blocking forms
+//!   are on [`Scope`].
 //! - [`Dft`]: complex-to-complex FFTs, `f32` and `f64`, 1-D and N-D.
 //! - [`RealDft`]: real-to-complex and complex-to-real FFTs (half spectrum), `f32` and `f64`, 1-D and
 //!   N-D, out of place.
@@ -31,6 +33,7 @@ mod device;
 mod dft;
 mod error;
 pub mod level2;
+pub mod level3;
 mod queue;
 mod rdft;
 mod scalar;
@@ -43,6 +46,7 @@ pub use device::{DeviceInfo, DeviceType, find_by_pci_address, find_by_uuid};
 pub use dft::{Dft, Placement};
 pub use error::{Error, Result};
 pub use level2::{Diag, Level2, Uplo};
+pub use level3::{Level3, Side};
 pub use queue::{DeviceKind, Queue};
 pub use rdft::RealDft;
 pub use scalar::{BlasElement, Complex, Element, GemmElement, Scalar};

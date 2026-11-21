@@ -57,6 +57,7 @@ use crate::scalar::{BlasElement, Complex, Element, GemmElement, Scalar};
 use crate::usm::UsmBuffer;
 
 mod level2;
+mod level3;
 
 mod sealed {
     pub trait Sealed {}

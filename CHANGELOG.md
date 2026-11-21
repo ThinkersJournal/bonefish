@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.40
+
+- `bonefish-sys` shim (R2, blocking and async, `f32` and `f64`): level 3 `symm`, `syrk`, `syr2k`, `trmm`, `trsm` (side 0 left / 1 right, uplo 0 upper / 1 lower, diag 0 non-unit / 1 unit). New `tests/level3.rs` (8 hand-value tests, the untouched triangle poisoned, trmm/trsm round trip, unit diagonal) and the oneMKL lock classification and counter test cover all twenty entry points. CPU/OpenCL device only; GPU UNVERIFIED. Batched, half/bf16 and complex level 3 not yet in the shim; no safe-API wrapper yet (R3).
+- `bonefish` (R3): safe level 3 API for `f32` and `f64`: blocking `level3::{symm, syrk, syr2k, trmm, trsm}` and the same on `Scope`, with `Side`. Extents (the special matrix is `m x m` on the left, `n x n` on the right; `syrk`/`syr2k` operands `n x k` or `k x n`) and output aliasing are checked in Rust. New `tests/level3.rs`: 5 hand-value and error tests. CPU/OpenCL only; GPU UNVERIFIED. Batched, half/bf16 and complex level 3 not done.
+- `bonefish-sys` `tests/dftr.rs`: the 120 s guard now has its own test (`guard_fires_on_overrun_and_not_otherwise`) with the limit injected: an overrunning body fails by name in under 3 s; quick bodies pass; a body's own panic is re-raised. Mutation: with the timeout removed the test fails after 10.00 s. #40 itself still not reproduced.
+
 ## 0.0.39
 
 - `bonefish` (R3): safe level 2 API for `f32` and `f64`: blocking `level2::{rotm, symv, syr, syr2, trmv, trsv, gbmv}` and the same on `Scope` (non-blocking, chained like the other scope operations), with `Uplo` and `Diag`. Extents, band storage (`lda >= kl + ku + 1`), `rotm` parameter length (5) and write/read aliasing are checked in Rust. New `tests/level2.rs`: 9 hand-value tests, the unreferenced triangle poisoned. CPU/OpenCL device only; GPU UNVERIFIED. Complex Hermitian counterparts not wrapped.

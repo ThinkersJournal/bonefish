@@ -28,6 +28,9 @@ template <class F> void *submit(void *q, F &&f) {
 oneapi::mkl::uplo U(int32_t u) {
   return u == 0 ? oneapi::mkl::uplo::upper : oneapi::mkl::uplo::lower;
 }
+oneapi::mkl::side SD(int32_t s) {
+  return s == 0 ? oneapi::mkl::side::left : oneapi::mkl::side::right;
+}
 oneapi::mkl::diag D(int32_t d) {
   return d == 0 ? oneapi::mkl::diag::nonunit : oneapi::mkl::diag::unit;
 }
@@ -253,5 +256,67 @@ BF_API void *bf_dtrsv_async(void *q, int32_t uplo, int32_t trans, int32_t diag, 
 BF_API void *bf_dgbmv_async(void *q, int32_t trans, int64_t m, int64_t n, int64_t kl, int64_t ku, double alpha, const double * a, int64_t lda, const double * x, int64_t incx, double beta, double * y, int64_t incy, void *const *deps, int64_t n_deps) {
   return submit(q, [&] {
     return blas::gbmv(bf::Q(q), T(trans), m, n, kl, ku, alpha, a, lda, x, incx, beta, y, incy, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+// Level 3 (R2 remainder: symm, syrk, syr2k, trmm, trsm). side: 0 left, 1 right; uplo: 0 upper, 1 lower;
+// diag: 0 non-unit, 1 unit; trans: 0 N, 1 T, 2 C.
+BF_API void *bf_ssymm_async(void *q, int32_t side, int32_t uplo, int64_t m, int64_t n, float alpha, const float * a, int64_t lda, const float * b, int64_t ldb, float beta, float *  c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::symm(bf::Q(q), SD(side), U(uplo), m, n, alpha, a, lda, b, ldb, beta, c, ldc, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+BF_API void *bf_ssyrk_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, float alpha, const float * a, int64_t lda, float beta, float *  c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::syrk(bf::Q(q), U(uplo), T(trans), n, k, alpha, a, lda, beta, c, ldc, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+BF_API void *bf_ssyr2k_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, float alpha, const float * a, int64_t lda, const float * b, int64_t ldb, float beta, float *  c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::syr2k(bf::Q(q), U(uplo), T(trans), n, k, alpha, a, lda, b, ldb, beta, c, ldc, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+BF_API void *bf_strmm_async(void *q, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int64_t m, int64_t n, float alpha, const float * a, int64_t lda, float *  b, int64_t ldb, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::trmm(bf::Q(q), SD(side), U(uplo), T(trans), D(diag), m, n, alpha, a, lda, b, ldb, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+BF_API void *bf_strsm_async(void *q, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int64_t m, int64_t n, float alpha, const float * a, int64_t lda, float *  b, int64_t ldb, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::trsm(bf::Q(q), SD(side), U(uplo), T(trans), D(diag), m, n, alpha, a, lda, b, ldb, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+BF_API void *bf_dsymm_async(void *q, int32_t side, int32_t uplo, int64_t m, int64_t n, double alpha, const double * a, int64_t lda, const double * b, int64_t ldb, double beta, double *  c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::symm(bf::Q(q), SD(side), U(uplo), m, n, alpha, a, lda, b, ldb, beta, c, ldc, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+BF_API void *bf_dsyrk_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, double alpha, const double * a, int64_t lda, double beta, double *  c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::syrk(bf::Q(q), U(uplo), T(trans), n, k, alpha, a, lda, beta, c, ldc, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+BF_API void *bf_dsyr2k_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, double alpha, const double * a, int64_t lda, const double * b, int64_t ldb, double beta, double *  c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::syr2k(bf::Q(q), U(uplo), T(trans), n, k, alpha, a, lda, b, ldb, beta, c, ldc, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+BF_API void *bf_dtrmm_async(void *q, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int64_t m, int64_t n, double alpha, const double * a, int64_t lda, double *  b, int64_t ldb, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::trmm(bf::Q(q), SD(side), U(uplo), T(trans), D(diag), m, n, alpha, a, lda, b, ldb, bf::deps_chained(*bf::Store(q), deps, n_deps));
+  });
+}
+
+BF_API void *bf_dtrsm_async(void *q, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int64_t m, int64_t n, double alpha, const double * a, int64_t lda, double *  b, int64_t ldb, void *const *deps, int64_t n_deps) {
+  return submit(q, [&] {
+    return blas::trsm(bf::Q(q), SD(side), U(uplo), T(trans), D(diag), m, n, alpha, a, lda, b, ldb, bf::deps_chained(*bf::Store(q), deps, n_deps));
   });
 }
