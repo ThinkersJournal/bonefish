@@ -533,7 +533,7 @@ pub fn gbmv<T: Level2>(
     })
 }
 
-fn same_queue(queue: &Queue, buffers: &[&Queue]) -> Result<()> {
+pub(crate) fn same_queue(queue: &Queue, buffers: &[&Queue]) -> Result<()> {
     if buffers.iter().all(|q| queue.same_as(q)) {
         Ok(())
     } else {
