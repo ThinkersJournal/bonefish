@@ -6,7 +6,7 @@ use super::{Event, NO_DEPS, Operand, Scope, Write, distinct};
 use crate::blas::{Transpose, check_matrix, dim};
 use crate::error::Result;
 use crate::level2::{Diag, Uplo};
-use crate::level3::{Level3, Side};
+use crate::level3::{Hermitian3, Level3, Side};
 
 /// Rows and columns of the special matrix `A` of `symm`, `trmm` and `trsm`: `m x m` on the left,
 /// `n x n` on the right.
@@ -272,6 +272,156 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
                 dim("lda", lda)?,
                 b.raw(),
                 dim("ldb", ldb)?,
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// `hemm`: as [`Scope::symm`] with `A` Hermitian (only the `uplo` triangle read; the diagonal's imaginary part is ignored).
+    ///
+    /// # Errors
+    ///
+    /// As for [`Scope::symm`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn hemm<T: Hermitian3>(
+        &'scope self,
+        side: Side,
+        uplo: Uplo,
+        m: usize,
+        n: usize,
+        alpha: T,
+        a: &impl Operand<T>,
+        lda: usize,
+        b: &impl Operand<T>,
+        ldb: usize,
+        beta: T,
+        c: &Write<'scope, T>,
+        ldc: usize,
+    ) -> Result<Event<'scope>> {
+        let (a, b, c) = (a.buffer(), b.buffer(), &*c.buf);
+        let na = side_dim(side, m, n);
+        check_matrix("A", a.len(), lda, na, na)?;
+        check_matrix("B", b.len(), ldb, m, n)?;
+        check_matrix("C", c.len(), ldc, m, n)?;
+        distinct(c, "C", a, "A")?;
+        distinct(c, "C", b, "B")?;
+        // SAFETY: extents checked; USM of this scope's queue, borrowed until the scope ends,
+        // which waits first; the written buffer is distinct from the read ones.
+        let raw = unsafe {
+            T::hemm_raw_async(
+                self.queue.raw(),
+                side.code(),
+                uplo.code(),
+                dim("m", m)?,
+                dim("n", n)?,
+                alpha,
+                a.raw(),
+                dim("lda", lda)?,
+                b.raw(),
+                dim("ldb", ldb)?,
+                beta,
+                c.raw(),
+                dim("ldc", ldc)?,
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// `herk`: `C = alpha * op(A) * op(A)^H + beta * C` with real `alpha` and `beta`; `C` Hermitian `n x n`, only the `uplo` triangle updated. `trans` is `No` or `ConjTrans`.
+    ///
+    /// # Errors
+    ///
+    /// As for [`Scope::syrk`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn herk<T: Hermitian3>(
+        &'scope self,
+        uplo: Uplo,
+        trans: Transpose,
+        n: usize,
+        k: usize,
+        alpha: T::Real,
+        a: &impl Operand<T>,
+        lda: usize,
+        beta: T::Real,
+        c: &Write<'scope, T>,
+        ldc: usize,
+    ) -> Result<Event<'scope>> {
+        let (a, c) = (a.buffer(), &*c.buf);
+        let (ar, ac) = rank_k_shape(trans, n, k);
+        check_matrix("A", a.len(), lda, ar, ac)?;
+        check_matrix("C", c.len(), ldc, n, n)?;
+        distinct(c, "C", a, "A")?;
+        // SAFETY: extents checked; USM of this scope's queue, borrowed until the scope ends,
+        // which waits first; the written buffer is distinct from the read ones.
+        let raw = unsafe {
+            T::herk_raw_async(
+                self.queue.raw(),
+                uplo.code(),
+                trans.code(),
+                dim("n", n)?,
+                dim("k", k)?,
+                alpha,
+                a.raw(),
+                dim("lda", lda)?,
+                beta,
+                c.raw(),
+                dim("ldc", ldc)?,
+                NO_DEPS,
+                0,
+            )
+        };
+        self.event(raw)
+    }
+
+    /// `her2k`: `C = alpha * op(A) * op(B)^H + conj(alpha) * op(B) * op(A)^H + beta * C` with real `beta`; `C` Hermitian `n x n`, only the `uplo` triangle updated.
+    ///
+    /// # Errors
+    ///
+    /// As for [`Scope::syr2k`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn her2k<T: Hermitian3>(
+        &'scope self,
+        uplo: Uplo,
+        trans: Transpose,
+        n: usize,
+        k: usize,
+        alpha: T,
+        a: &impl Operand<T>,
+        lda: usize,
+        b: &impl Operand<T>,
+        ldb: usize,
+        beta: T::Real,
+        c: &Write<'scope, T>,
+        ldc: usize,
+    ) -> Result<Event<'scope>> {
+        let (a, b, c) = (a.buffer(), b.buffer(), &*c.buf);
+        let (ar, ac) = rank_k_shape(trans, n, k);
+        check_matrix("A", a.len(), lda, ar, ac)?;
+        check_matrix("B", b.len(), ldb, ar, ac)?;
+        check_matrix("C", c.len(), ldc, n, n)?;
+        distinct(c, "C", a, "A")?;
+        distinct(c, "C", b, "B")?;
+        // SAFETY: extents checked; USM of this scope's queue, borrowed until the scope ends,
+        // which waits first; the written buffer is distinct from the read ones.
+        let raw = unsafe {
+            T::her2k_raw_async(
+                self.queue.raw(),
+                uplo.code(),
+                trans.code(),
+                dim("n", n)?,
+                dim("k", k)?,
+                alpha,
+                a.raw(),
+                dim("lda", lda)?,
+                b.raw(),
+                dim("ldb", ldb)?,
+                beta,
+                c.raw(),
+                dim("ldc", ldc)?,
                 NO_DEPS,
                 0,
             )
