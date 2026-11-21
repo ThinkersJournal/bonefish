@@ -202,3 +202,100 @@ BF_API void *bf_ziamax_async(void *q, int64_t n, const double *x, int64_t incx, 
 BF_API void *bf_zgemv_async(void *q, int32_t trans, int64_t m, int64_t n, const double *alpha, const double *a, int64_t lda, const double *x, int64_t incx, const double *beta, double *y, int64_t incy, void *const *deps, int64_t n_deps) {
   return gemv_a<double>(q, trans, m, n, alpha, a, lda, x, incx, beta, y, incy, deps, n_deps);
 }
+
+// ---- Level 3 (symm, hemm, syrk, herk, syr2k, her2k, trmm, trsm), non-blocking only, as above.
+// side: 0 left, 1 right; uplo: 0 upper, 1 lower; diag: 0 non-unit, 1 unit; trans: 0 N, 1 T, 2 C.
+// herk takes REAL alpha and beta, her2k a complex alpha and REAL beta, passed by value as reals.
+namespace {
+oneapi::mkl::uplo U3(int32_t u) { return u == 0 ? oneapi::mkl::uplo::upper : oneapi::mkl::uplo::lower; }
+oneapi::mkl::side SD3(int32_t s) { return s == 0 ? oneapi::mkl::side::left : oneapi::mkl::side::right; }
+oneapi::mkl::diag D3(int32_t d) { return d == 0 ? oneapi::mkl::diag::nonunit : oneapi::mkl::diag::unit; }
+template <class R> void *symm_a(void *q, int32_t side, int32_t uplo, int64_t m, int64_t n, const R *alpha, const R *a, int64_t lda, const R *b, int64_t ldb, const R *beta, R *c, int64_t ldc, void *const *deps, int64_t nd) {
+  return submit(q, [&] { return blas::symm(bf::Q(q), SD3(side), U3(uplo), m, n, sc(alpha), cx(a), lda, cx(b), ldb, sc(beta), cx(c), ldc, bf::deps_chained(*bf::Store(q), deps, nd)); });
+}
+template <class R> void *hemm_a(void *q, int32_t side, int32_t uplo, int64_t m, int64_t n, const R *alpha, const R *a, int64_t lda, const R *b, int64_t ldb, const R *beta, R *c, int64_t ldc, void *const *deps, int64_t nd) {
+  return submit(q, [&] { return blas::hemm(bf::Q(q), SD3(side), U3(uplo), m, n, sc(alpha), cx(a), lda, cx(b), ldb, sc(beta), cx(c), ldc, bf::deps_chained(*bf::Store(q), deps, nd)); });
+}
+template <class R> void *syrk_a(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, const R *alpha, const R *a, int64_t lda, const R *beta, R *c, int64_t ldc, void *const *deps, int64_t nd) {
+  return submit(q, [&] { return blas::syrk(bf::Q(q), U3(uplo), T(trans), n, k, sc(alpha), cx(a), lda, sc(beta), cx(c), ldc, bf::deps_chained(*bf::Store(q), deps, nd)); });
+}
+template <class R> void *herk_a(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, R alpha, const R *a, int64_t lda, R beta, R *c, int64_t ldc, void *const *deps, int64_t nd) {
+  return submit(q, [&] { return blas::herk(bf::Q(q), U3(uplo), T(trans), n, k, alpha, cx(a), lda, beta, cx(c), ldc, bf::deps_chained(*bf::Store(q), deps, nd)); });
+}
+template <class R> void *syr2k_a(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, const R *alpha, const R *a, int64_t lda, const R *b, int64_t ldb, const R *beta, R *c, int64_t ldc, void *const *deps, int64_t nd) {
+  return submit(q, [&] { return blas::syr2k(bf::Q(q), U3(uplo), T(trans), n, k, sc(alpha), cx(a), lda, cx(b), ldb, sc(beta), cx(c), ldc, bf::deps_chained(*bf::Store(q), deps, nd)); });
+}
+template <class R> void *her2k_a(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, const R *alpha, const R *a, int64_t lda, const R *b, int64_t ldb, R beta, R *c, int64_t ldc, void *const *deps, int64_t nd) {
+  return submit(q, [&] { return blas::her2k(bf::Q(q), U3(uplo), T(trans), n, k, sc(alpha), cx(a), lda, cx(b), ldb, beta, cx(c), ldc, bf::deps_chained(*bf::Store(q), deps, nd)); });
+}
+template <class R> void *trmm_a(void *q, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int64_t m, int64_t n, const R *alpha, const R *a, int64_t lda, R *b, int64_t ldb, void *const *deps, int64_t nd) {
+  return submit(q, [&] { return blas::trmm(bf::Q(q), SD3(side), U3(uplo), T(trans), D3(diag), m, n, sc(alpha), cx(a), lda, cx(b), ldb, bf::deps_chained(*bf::Store(q), deps, nd)); });
+}
+template <class R> void *trsm_a(void *q, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int64_t m, int64_t n, const R *alpha, const R *a, int64_t lda, R *b, int64_t ldb, void *const *deps, int64_t nd) {
+  return submit(q, [&] { return blas::trsm(bf::Q(q), SD3(side), U3(uplo), T(trans), D3(diag), m, n, sc(alpha), cx(a), lda, cx(b), ldb, bf::deps_chained(*bf::Store(q), deps, nd)); });
+}
+} // namespace
+
+BF_API void *bf_csymm_async(void *q, int32_t side, int32_t uplo, int64_t m, int64_t n, const float *alpha, const float *a, int64_t lda, const float *b, int64_t ldb, const float *beta, float *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return symm_a<float>(q, side, uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_chemm_async(void *q, int32_t side, int32_t uplo, int64_t m, int64_t n, const float *alpha, const float *a, int64_t lda, const float *b, int64_t ldb, const float *beta, float *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return hemm_a<float>(q, side, uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_csyrk_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, const float *alpha, const float *a, int64_t lda, const float *beta, float *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return syrk_a<float>(q, uplo, trans, n, k, alpha, a, lda, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_cherk_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, float alpha, const float *a, int64_t lda, float beta, float *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return herk_a<float>(q, uplo, trans, n, k, alpha, a, lda, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_csyr2k_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, const float *alpha, const float *a, int64_t lda, const float *b, int64_t ldb, const float *beta, float *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return syr2k_a<float>(q, uplo, trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_cher2k_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, const float *alpha, const float *a, int64_t lda, const float *b, int64_t ldb, float beta, float *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return her2k_a<float>(q, uplo, trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_ctrmm_async(void *q, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int64_t m, int64_t n, const float *alpha, const float *a, int64_t lda, float *b, int64_t ldb, void *const *deps, int64_t n_deps) {
+  return trmm_a<float>(q, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, deps, n_deps);
+}
+
+BF_API void *bf_ctrsm_async(void *q, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int64_t m, int64_t n, const float *alpha, const float *a, int64_t lda, float *b, int64_t ldb, void *const *deps, int64_t n_deps) {
+  return trsm_a<float>(q, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, deps, n_deps);
+}
+
+BF_API void *bf_zsymm_async(void *q, int32_t side, int32_t uplo, int64_t m, int64_t n, const double *alpha, const double *a, int64_t lda, const double *b, int64_t ldb, const double *beta, double *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return symm_a<double>(q, side, uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_zhemm_async(void *q, int32_t side, int32_t uplo, int64_t m, int64_t n, const double *alpha, const double *a, int64_t lda, const double *b, int64_t ldb, const double *beta, double *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return hemm_a<double>(q, side, uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_zsyrk_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, const double *alpha, const double *a, int64_t lda, const double *beta, double *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return syrk_a<double>(q, uplo, trans, n, k, alpha, a, lda, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_zherk_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, double alpha, const double *a, int64_t lda, double beta, double *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return herk_a<double>(q, uplo, trans, n, k, alpha, a, lda, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_zsyr2k_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, const double *alpha, const double *a, int64_t lda, const double *b, int64_t ldb, const double *beta, double *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return syr2k_a<double>(q, uplo, trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_zher2k_async(void *q, int32_t uplo, int32_t trans, int64_t n, int64_t k, const double *alpha, const double *a, int64_t lda, const double *b, int64_t ldb, double beta, double *c, int64_t ldc, void *const *deps, int64_t n_deps) {
+  return her2k_a<double>(q, uplo, trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc, deps, n_deps);
+}
+
+BF_API void *bf_ztrmm_async(void *q, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int64_t m, int64_t n, const double *alpha, const double *a, int64_t lda, double *b, int64_t ldb, void *const *deps, int64_t n_deps) {
+  return trmm_a<double>(q, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, deps, n_deps);
+}
+
+BF_API void *bf_ztrsm_async(void *q, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int64_t m, int64_t n, const double *alpha, const double *a, int64_t lda, double *b, int64_t ldb, void *const *deps, int64_t n_deps) {
+  return trsm_a<double>(q, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, deps, n_deps);
+}
