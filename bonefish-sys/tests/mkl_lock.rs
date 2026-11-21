@@ -155,6 +155,22 @@ const MKL_FUNCS: &[&str] = &[
     "bf_dtrmm_async",
     "bf_dtrsm",
     "bf_dtrsm_async",
+    "bf_csymm_async",
+    "bf_chemm_async",
+    "bf_csyrk_async",
+    "bf_cherk_async",
+    "bf_csyr2k_async",
+    "bf_cher2k_async",
+    "bf_ctrmm_async",
+    "bf_ctrsm_async",
+    "bf_zsymm_async",
+    "bf_zhemm_async",
+    "bf_zsyrk_async",
+    "bf_zherk_async",
+    "bf_zsyr2k_async",
+    "bf_zher2k_async",
+    "bf_ztrmm_async",
+    "bf_ztrsm_async",
 ];
 
 /// Functions that do not call oneMKL (SYCL runtime calls and bookkeeping).
@@ -764,6 +780,51 @@ mod counter {
             bf_dsyr2k, bf_dsyr2k_async, (0, 0, 2, 1, 1.0, mp, 2, xp, 2, 0.0, yp, 2), (0, 0, 2, 1, 1.0, mp, 2, xp, 2, 0.0, yp, 2);
             bf_dtrmm, bf_dtrmm_async, (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2), (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2);
             bf_dtrsm, bf_dtrsm_async, (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2), (0, 0, 0, 0, 2, 2, 1.0, mp, 2, xp, 2)
+        );
+
+        // Complex level 3 (non-blocking only): c and z symm, hemm, syrk, herk, syr2k, her2k, trmm, trsm.
+        macro_rules! cl3_calls {
+            ($t:ty, $xp:ident, $yp:ident, $mp:ident, $one:ident, $zero:ident, $($f:ident, ($($arg:expr),*));+ $(;)?) => {{
+                let sz = std::mem::size_of::<$t>() as i64;
+                let (x, y, m) = (
+                    Usm::new(q, 16 * sz),
+                    Usm::new(q, 16 * sz),
+                    Usm::new(q, 16 * sz),
+                );
+                let ($xp, $yp, $mp) = (x.p.cast::<$t>(), y.p.cast::<$t>(), m.p.cast::<$t>());
+                let one_arr: [$t; 2] = [1.0, 0.0];
+                let zero_arr: [$t; 2] = [0.0, 0.0];
+                let ($one, $zero) = (one_arr.as_ptr(), zero_arr.as_ptr());
+                let none: *const *mut c_void = std::ptr::null();
+                $(
+                    seen.push(stringify!($f));
+                    let (d, ev) = moved(|| unsafe { $f(q, $($arg),*, none, 0) });
+                    assert!(!ev.is_null(), "{} returned no event", stringify!($f));
+                    assert_eq!(d, 1, "{} moved the counter by {d}, not 1", stringify!($f));
+                    assert_eq!(unsafe { bf_event_wait(ev) }, 0, "{}", stringify!($f));
+                    unsafe { bf_event_free(ev) };
+                )+
+            }};
+        }
+        cl3_calls!(f32, xp, yp, mp, one, zero,
+            bf_csymm_async, (0, 0, 2, 2, one, mp, 2, xp, 2, zero, yp, 2);
+            bf_chemm_async, (0, 0, 2, 2, one, mp, 2, xp, 2, zero, yp, 2);
+            bf_csyrk_async, (0, 0, 2, 1, one, mp, 2, zero, yp, 2);
+            bf_cherk_async, (0, 0, 2, 1, 1.0, mp, 2, 0.0, yp, 2);
+            bf_csyr2k_async, (0, 0, 2, 1, one, mp, 2, xp, 2, zero, yp, 2);
+            bf_cher2k_async, (0, 0, 2, 1, one, mp, 2, xp, 2, 0.0, yp, 2);
+            bf_ctrmm_async, (0, 0, 0, 0, 2, 2, one, mp, 2, xp, 2);
+            bf_ctrsm_async, (0, 0, 0, 0, 2, 2, one, mp, 2, xp, 2)
+        );
+        cl3_calls!(f64, xp, yp, mp, one, zero,
+            bf_zsymm_async, (0, 0, 2, 2, one, mp, 2, xp, 2, zero, yp, 2);
+            bf_zhemm_async, (0, 0, 2, 2, one, mp, 2, xp, 2, zero, yp, 2);
+            bf_zsyrk_async, (0, 0, 2, 1, one, mp, 2, zero, yp, 2);
+            bf_zherk_async, (0, 0, 2, 1, 1.0, mp, 2, 0.0, yp, 2);
+            bf_zsyr2k_async, (0, 0, 2, 1, one, mp, 2, xp, 2, zero, yp, 2);
+            bf_zher2k_async, (0, 0, 2, 1, one, mp, 2, xp, 2, 0.0, yp, 2);
+            bf_ztrmm_async, (0, 0, 0, 0, 2, 2, one, mp, 2, xp, 2);
+            bf_ztrsm_async, (0, 0, 0, 0, 2, 2, one, mp, 2, xp, 2)
         );
 
         // Non-blocking DFT compute: a plan, one async compute, wait, free.
