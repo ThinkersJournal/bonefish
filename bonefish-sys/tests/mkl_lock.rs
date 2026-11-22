@@ -45,6 +45,8 @@ const MKL_FUNCS: &[&str] = &[
     "bf_dgemv",
     "bf_sgemm_async",
     "bf_dgemm_async",
+    "bf_sgemm_batch_strided_async",
+    "bf_dgemm_batch_strided_async",
     "bf_saxpy_async",
     "bf_sscal_async",
     "bf_scopy_async",
@@ -550,6 +552,70 @@ mod counter {
             seen.push("bf_dgemm_async");
             assert!(!e.is_null());
             assert_eq!(d, 1, "bf_dgemm_async moved the counter by {d}, not 1");
+            assert_eq!(unsafe { bf_event_wait(e) }, 0);
+            unsafe { bf_event_free(e) };
+            let (d, e) = moved(|| unsafe {
+                bf_sgemm_batch_strided_async(
+                    q,
+                    0,
+                    0,
+                    2,
+                    2,
+                    2,
+                    1.0,
+                    m32.p.cast(),
+                    2,
+                    4,
+                    m32.p.cast(),
+                    2,
+                    4,
+                    0.0,
+                    c32.p.cast(),
+                    2,
+                    4,
+                    1,
+                    std::ptr::null(),
+                    0,
+                )
+            });
+            seen.push("bf_sgemm_batch_strided_async");
+            assert!(!e.is_null());
+            assert_eq!(
+                d, 1,
+                "bf_sgemm_batch_strided_async moved the counter by {d}, not 1"
+            );
+            assert_eq!(unsafe { bf_event_wait(e) }, 0);
+            unsafe { bf_event_free(e) };
+            let (d, e) = moved(|| unsafe {
+                bf_dgemm_batch_strided_async(
+                    q,
+                    0,
+                    0,
+                    2,
+                    2,
+                    2,
+                    1.0,
+                    m64.p.cast(),
+                    2,
+                    4,
+                    m64.p.cast(),
+                    2,
+                    4,
+                    0.0,
+                    c64.p.cast(),
+                    2,
+                    4,
+                    1,
+                    std::ptr::null(),
+                    0,
+                )
+            });
+            seen.push("bf_dgemm_batch_strided_async");
+            assert!(!e.is_null());
+            assert_eq!(
+                d, 1,
+                "bf_dgemm_batch_strided_async moved the counter by {d}, not 1"
+            );
             assert_eq!(unsafe { bf_event_wait(e) }, 0);
             unsafe { bf_event_free(e) };
         }
