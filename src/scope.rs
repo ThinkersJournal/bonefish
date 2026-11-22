@@ -56,6 +56,7 @@ use crate::rdft::RealDft;
 use crate::scalar::{BlasElement, Complex, Element, GemmElement, Scalar};
 use crate::usm::UsmBuffer;
 
+mod batched;
 mod dft;
 mod level1;
 mod level2;
@@ -561,6 +562,7 @@ fn distinct<A: Element, B: Element>(
     Ok(())
 }
 
+pub use batched::BatchedGemm;
 pub use dft::{Plan, RealPlan};
 
 const NO_DEPS: *const *mut c_void = std::ptr::null();

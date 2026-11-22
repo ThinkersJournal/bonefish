@@ -50,7 +50,7 @@ pub use level3::{Hermitian3, Level3, Side};
 pub use queue::{DeviceKind, Queue};
 pub use rdft::RealDft;
 pub use scalar::{BlasElement, Complex, Element, GemmElement, Scalar};
-pub use scope::{DeviceTime, Event, Operand, Plan, Read, RealPlan, Scope, Write};
+pub use scope::{BatchedGemm, DeviceTime, Event, Operand, Plan, Read, RealPlan, Scope, Write};
 pub use usm::{UsmBuffer, UsmKind};
 
 /// Whether the SYCL shim was built into this binary.

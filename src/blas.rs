@@ -128,6 +128,49 @@ pub fn gemm<T: GemmElement>(
     Queue::status(rc)
 }
 
+/// Strided batched `c_i = alpha * op(a_i) * op(b_i) + beta * c_i` for `i < batch`, column-major,
+/// blocking; operand `i` is at `base + i * stride` elements (stride 0 on `a` or `b` reuses one
+/// matrix). `stride_c` must be at least one `c` matrix. `f32` and `f64`.
+///
+/// # Errors
+///
+/// [`Error::QueueMismatch`] if a buffer belongs to another queue; [`Error::InvalidArgument`] if an
+/// extent (including the whole batch) does not fit, `stride_c` is too small, or a buffer is
+/// shared; [`Error::Sycl`] / [`Error::Mkl`] from the device.
+#[allow(clippy::too_many_arguments)]
+pub fn gemm_batch_strided<T: crate::scope::BatchedGemm>(
+    queue: &Queue,
+    transa: Transpose,
+    transb: Transpose,
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: T,
+    a: &UsmBuffer<T>,
+    lda: usize,
+    stride_a: usize,
+    b: &UsmBuffer<T>,
+    ldb: usize,
+    stride_b: usize,
+    beta: T,
+    c: &mut UsmBuffer<T>,
+    ldc: usize,
+    stride_c: usize,
+    batch: usize,
+) -> Result<()> {
+    if !(queue.same_as(a.queue()) && queue.same_as(b.queue()) && queue.same_as(c.queue())) {
+        return Err(Error::QueueMismatch);
+    }
+    queue.scope(|s| {
+        let (a, b, c) = (s.read(a)?, s.read(b)?, s.write(c)?);
+        s.gemm_batch_strided(
+            transa, transb, m, n, k, alpha, &a, lda, stride_a, &b, ldb, stride_b, beta, &c, ldc,
+            stride_c, batch,
+        )?;
+        Ok(())
+    })
+}
+
 // Blocking level 1 and gemv. Each is "submit on a scope, wait": the validation, the submission
 // chain and the collection of asynchronous errors are the scope's (see `crate::scope`), so there is
 // one implementation of each. Consequence worth knowing: unlike `gemm` above, which calls the

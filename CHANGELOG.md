@@ -2,7 +2,8 @@
 
 ## 0.0.41
 
-- `bonefish-sys` shim (R2, async): strided batched `gemm` (`bf_sgemm_batch_strided_async`, `bf_dgemm_batch_strided_async`; `tests/gemm_batch.rs`, hand values over a batch of 2; mkl_lock classifies both). `bonefish-sys` `tests/shim_fresh.rs`: the loaded shim DLL must be the one this build produced (Windows), seeded stale case fails by name. No safe wrapper yet.
+- `bonefish` (R3): safe strided batched `gemm` for `f32`/`f64`: blocking `blas::gemm_batch_strided` and non-blocking `Scope::gemm_batch_strided` (sealed `BatchedGemm`). The whole batch extent of each operand is checked in Rust, `stride_c` must cover one `c` matrix (no overlapping outputs), stride 0 on `a`/`b` reuses one matrix, `c` distinct from `a`/`b`. New `tests/gemm_batch.rs` (hand values, stride 0, scope form, error cases). CPU/OpenCL only; GPU UNVERIFIED.
+- `bonefish-sys` shim (R2, async): strided batched `gemm` (`bf_sgemm_batch_strided_async`, `bf_dgemm_batch_strided_async`; `tests/gemm_batch.rs`, hand values over a batch of 2; mkl_lock classifies both). `bonefish-sys` `tests/shim_fresh.rs`: the loaded shim DLL must be the one this build produced (Windows), seeded stale case fails by name. Safe wrapper: see the entry above.
 - `bonefish-sys` shim (R2, async): complex level 3 `c/z` `symm`, `hemm`, `syrk`, `herk`, `syr2k`, `her2k`, `trmm`, `trsm`; `tests/complex_level3.rs` hand-value tests; mkl_lock classifies all sixteen. `bonefish` (R15): `Scope` split into `scope/{dft,level1,level3}.rs`, no API change. `bonefish` (R3): `Level3` now covers `Complex<f32/f64>`; new `Hermitian3` (`hemm`, `herk`, `her2k`, real alpha/beta for `herk`) blocking and on `Scope`; new `tests/complex_level3.rs`. CPU/OpenCL only; GPU UNVERIFIED. Batched, half/bf16 level 3 not done; #40 still unreproduced. (0.0.41 is a placeholder; the gate allocates the number.)
 
 ## 0.0.40
