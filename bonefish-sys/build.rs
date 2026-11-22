@@ -82,6 +82,7 @@ fn main() {
     println!("cargo::rustc-link-search=native={}", out.display());
     println!("cargo::rustc-link-lib=dylib=bonefish_shim");
     println!("cargo::rustc-cfg=bonefish_sycl");
+    println!("cargo::rustc-env=BONEFISH_SHIM_BUILT={}", lib.display());
 }
 
 /// Returns the compiler and, when known, the oneAPI root it came from.
