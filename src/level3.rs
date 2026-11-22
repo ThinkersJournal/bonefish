@@ -1,6 +1,8 @@
-//! Level 3 BLAS beyond `gemm` (R3): `symm`, `syrk`, `syr2k`, `trmm`, `trsm`, for `f32` and `f64`.
-//! The non-blocking forms are on [`Scope`](crate::Scope); the blocking forms are here. Batched,
-//! half-precision and complex variants are not wrapped yet.
+//! Level 3 BLAS beyond `gemm` (R3): `symm`, `syrk`, `syr2k`, `trmm`, `trsm` for `f32`, `f64`,
+//! `Complex<f32>` and `Complex<f64>`, and the Hermitian `hemm`, `herk`, `her2k` for the complex types.
+//! The non-blocking forms are on [`Scope`](crate::Scope); the blocking forms are here. Batched and
+//! half-precision variants are not wrapped yet. For complex types `syrk` and `syr2k` are the
+//! complex-SYMMETRIC updates (transpose, not conjugate transpose).
 
 use std::ffi::c_void;
 
@@ -10,7 +12,7 @@ use crate::blas::Transpose;
 use crate::error::Result;
 use crate::level2::{Diag, Uplo, same_queue};
 use crate::queue::Queue;
-use crate::scalar::Scalar;
+use crate::scalar::{Complex, Element, Scalar};
 use crate::usm::UsmBuffer;
 
 /// Which side the special matrix of `symm`, `trmm` and `trsm` multiplies from.
@@ -31,9 +33,9 @@ impl Side {
     }
 }
 
-/// A real type the level 3 functions in this module accept: `f32` or `f64`. Sealed through
-/// [`Element`](crate::Element).
-pub trait Level3: Scalar {
+/// An element type the level 3 functions in this module accept: `f32`, `f64`, `Complex<f32>` or
+/// `Complex<f64>`. Sealed through [`Element`].
+pub trait Level3: Element {
     /// # Safety
     /// Pointers are USM from `q` covering the stated extents, alive and untouched by the host
     /// until the returned event (or the queue) has been waited on.
@@ -141,6 +143,78 @@ pub trait Level3: Scalar {
         lda: i64,
         b: *mut Self,
         ldb: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+}
+
+/// A complex type the Hermitian level 3 functions accept: `Complex<f32>` or `Complex<f64>`.
+/// `herk` and `her2k` take REAL `alpha` (`herk`) and `beta`, as BLAS defines them; `herk` and
+/// `her2k` accept `Transpose::No` and `Transpose::ConjTrans` only (oneMKL rejects the other).
+pub trait Hermitian3: Level3 {
+    /// The real type underlying this element.
+    type Real: Scalar;
+
+    /// # Safety
+    /// As for [`Level3::symm_raw_async`].
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn hemm_raw_async(
+        q: *mut c_void,
+        side: i32,
+        uplo: i32,
+        m: i64,
+        n: i64,
+        alpha: Self,
+        a: *const Self,
+        lda: i64,
+        b: *const Self,
+        ldb: i64,
+        beta: Self,
+        c: *mut Self,
+        ldc: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+
+    /// # Safety
+    /// As for [`Level3::symm_raw_async`].
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn herk_raw_async(
+        q: *mut c_void,
+        uplo: i32,
+        trans: i32,
+        n: i64,
+        k: i64,
+        alpha: Self::Real,
+        a: *const Self,
+        lda: i64,
+        beta: Self::Real,
+        c: *mut Self,
+        ldc: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+
+    /// # Safety
+    /// As for [`Level3::symm_raw_async`].
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn her2k_raw_async(
+        q: *mut c_void,
+        uplo: i32,
+        trans: i32,
+        n: i64,
+        k: i64,
+        alpha: Self,
+        a: *const Self,
+        lda: i64,
+        b: *const Self,
+        ldb: i64,
+        beta: Self::Real,
+        c: *mut Self,
+        ldc: i64,
         deps: *const *mut c_void,
         n_deps: i64,
     ) -> *mut c_void;
@@ -290,6 +364,616 @@ impl_level3!(
     bf_dtrsm_async
 );
 
+macro_rules! impl_level3_complex_c {
+    () => {
+        impl Level3 for Complex<f32> {
+            unsafe fn symm_raw_async(
+                q: *mut c_void,
+                side: i32,
+                uplo: i32,
+                m: i64,
+                n: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *const Self,
+                ldb: i64,
+                beta: Self,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: `Complex<f32>` is `repr(C)` `(re, im)`, so a pointer to one is a pointer to two
+                // `f32`; `alpha` and `beta` outlive the call. The rest is the caller's contract.
+                unsafe {
+                    sys::bf_csymm_async(
+                        q,
+                        side,
+                        uplo,
+                        m,
+                        n,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        (&raw const beta).cast(),
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn syrk_raw_async(
+                q: *mut c_void,
+                uplo: i32,
+                trans: i32,
+                n: i64,
+                k: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                beta: Self,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`.
+                unsafe {
+                    sys::bf_csyrk_async(
+                        q,
+                        uplo,
+                        trans,
+                        n,
+                        k,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        (&raw const beta).cast(),
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn syr2k_raw_async(
+                q: *mut c_void,
+                uplo: i32,
+                trans: i32,
+                n: i64,
+                k: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *const Self,
+                ldb: i64,
+                beta: Self,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`.
+                unsafe {
+                    sys::bf_csyr2k_async(
+                        q,
+                        uplo,
+                        trans,
+                        n,
+                        k,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        (&raw const beta).cast(),
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn trmm_raw_async(
+                q: *mut c_void,
+                side: i32,
+                uplo: i32,
+                trans: i32,
+                diag: i32,
+                m: i64,
+                n: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *mut Self,
+                ldb: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`.
+                unsafe {
+                    sys::bf_ctrmm_async(
+                        q,
+                        side,
+                        uplo,
+                        trans,
+                        diag,
+                        m,
+                        n,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn trsm_raw_async(
+                q: *mut c_void,
+                side: i32,
+                uplo: i32,
+                trans: i32,
+                diag: i32,
+                m: i64,
+                n: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *mut Self,
+                ldb: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`.
+                unsafe {
+                    sys::bf_ctrsm_async(
+                        q,
+                        side,
+                        uplo,
+                        trans,
+                        diag,
+                        m,
+                        n,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+        }
+
+        impl Hermitian3 for Complex<f32> {
+            type Real = f32;
+            unsafe fn hemm_raw_async(
+                q: *mut c_void,
+                side: i32,
+                uplo: i32,
+                m: i64,
+                n: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *const Self,
+                ldb: i64,
+                beta: Self,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`.
+                unsafe {
+                    sys::bf_chemm_async(
+                        q,
+                        side,
+                        uplo,
+                        m,
+                        n,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        (&raw const beta).cast(),
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn herk_raw_async(
+                q: *mut c_void,
+                uplo: i32,
+                trans: i32,
+                n: i64,
+                k: i64,
+                alpha: f32,
+                a: *const Self,
+                lda: i64,
+                beta: f32,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`; `alpha` and `beta` are real, by value.
+                unsafe {
+                    sys::bf_cherk_async(
+                        q,
+                        uplo,
+                        trans,
+                        n,
+                        k,
+                        alpha,
+                        a.cast(),
+                        lda,
+                        beta,
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn her2k_raw_async(
+                q: *mut c_void,
+                uplo: i32,
+                trans: i32,
+                n: i64,
+                k: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *const Self,
+                ldb: i64,
+                beta: f32,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`; `beta` is real, by value.
+                unsafe {
+                    sys::bf_cher2k_async(
+                        q,
+                        uplo,
+                        trans,
+                        n,
+                        k,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        beta,
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+        }
+    };
+}
+impl_level3_complex_c!();
+
+macro_rules! impl_level3_complex_z {
+    () => {
+        impl Level3 for Complex<f64> {
+            unsafe fn symm_raw_async(
+                q: *mut c_void,
+                side: i32,
+                uplo: i32,
+                m: i64,
+                n: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *const Self,
+                ldb: i64,
+                beta: Self,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: `Complex<f64>` is `repr(C)` `(re, im)`, so a pointer to one is a pointer to two
+                // `f64`; `alpha` and `beta` outlive the call. The rest is the caller's contract.
+                unsafe {
+                    sys::bf_zsymm_async(
+                        q,
+                        side,
+                        uplo,
+                        m,
+                        n,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        (&raw const beta).cast(),
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn syrk_raw_async(
+                q: *mut c_void,
+                uplo: i32,
+                trans: i32,
+                n: i64,
+                k: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                beta: Self,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`.
+                unsafe {
+                    sys::bf_zsyrk_async(
+                        q,
+                        uplo,
+                        trans,
+                        n,
+                        k,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        (&raw const beta).cast(),
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn syr2k_raw_async(
+                q: *mut c_void,
+                uplo: i32,
+                trans: i32,
+                n: i64,
+                k: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *const Self,
+                ldb: i64,
+                beta: Self,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`.
+                unsafe {
+                    sys::bf_zsyr2k_async(
+                        q,
+                        uplo,
+                        trans,
+                        n,
+                        k,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        (&raw const beta).cast(),
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn trmm_raw_async(
+                q: *mut c_void,
+                side: i32,
+                uplo: i32,
+                trans: i32,
+                diag: i32,
+                m: i64,
+                n: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *mut Self,
+                ldb: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`.
+                unsafe {
+                    sys::bf_ztrmm_async(
+                        q,
+                        side,
+                        uplo,
+                        trans,
+                        diag,
+                        m,
+                        n,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn trsm_raw_async(
+                q: *mut c_void,
+                side: i32,
+                uplo: i32,
+                trans: i32,
+                diag: i32,
+                m: i64,
+                n: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *mut Self,
+                ldb: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`.
+                unsafe {
+                    sys::bf_ztrsm_async(
+                        q,
+                        side,
+                        uplo,
+                        trans,
+                        diag,
+                        m,
+                        n,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+        }
+
+        impl Hermitian3 for Complex<f64> {
+            type Real = f64;
+            unsafe fn hemm_raw_async(
+                q: *mut c_void,
+                side: i32,
+                uplo: i32,
+                m: i64,
+                n: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *const Self,
+                ldb: i64,
+                beta: Self,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`.
+                unsafe {
+                    sys::bf_zhemm_async(
+                        q,
+                        side,
+                        uplo,
+                        m,
+                        n,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        (&raw const beta).cast(),
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn herk_raw_async(
+                q: *mut c_void,
+                uplo: i32,
+                trans: i32,
+                n: i64,
+                k: i64,
+                alpha: f64,
+                a: *const Self,
+                lda: i64,
+                beta: f64,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`; `alpha` and `beta` are real, by value.
+                unsafe {
+                    sys::bf_zherk_async(
+                        q,
+                        uplo,
+                        trans,
+                        n,
+                        k,
+                        alpha,
+                        a.cast(),
+                        lda,
+                        beta,
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+            unsafe fn her2k_raw_async(
+                q: *mut c_void,
+                uplo: i32,
+                trans: i32,
+                n: i64,
+                k: i64,
+                alpha: Self,
+                a: *const Self,
+                lda: i64,
+                b: *const Self,
+                ldb: i64,
+                beta: f64,
+                c: *mut Self,
+                ldc: i64,
+                deps: *const *mut c_void,
+                n_deps: i64,
+            ) -> *mut c_void {
+                // SAFETY: as for `symm_raw_async`; `beta` is real, by value.
+                unsafe {
+                    sys::bf_zher2k_async(
+                        q,
+                        uplo,
+                        trans,
+                        n,
+                        k,
+                        (&raw const alpha).cast(),
+                        a.cast(),
+                        lda,
+                        b.cast(),
+                        ldb,
+                        beta,
+                        c.cast(),
+                        ldc,
+                        deps,
+                        n_deps,
+                    )
+                }
+            }
+        }
+    };
+}
+impl_level3_complex_z!();
+
 /// `C = alpha * A * B + beta * C` (`Side::Left`) or `alpha * B * A + beta * C` (`Side::Right`); `A` symmetric, only the `uplo` triangle read; `B` and `C` are `m x n`. Blocking.
 ///
 /// # Errors
@@ -437,6 +1121,91 @@ pub fn trsm<T: Level3>(
     queue.scope(|s| {
         let (a, b) = (s.read(a)?, s.write(b)?);
         s.trsm(side, uplo, trans, diag, m, n, alpha, &a, lda, &b, ldb)?;
+        Ok(())
+    })
+}
+
+/// `C = alpha * A * B + beta * C` (`Side::Left`) or `alpha * B * A + beta * C` (`Side::Right`); `A` Hermitian, only the `uplo` triangle read; `B` and `C` are `m x n`. Blocking.
+///
+/// # Errors
+///
+/// As for [`symm`].
+#[allow(clippy::too_many_arguments)]
+pub fn hemm<T: Hermitian3>(
+    queue: &Queue,
+    side: Side,
+    uplo: Uplo,
+    m: usize,
+    n: usize,
+    alpha: T,
+    a: &UsmBuffer<T>,
+    lda: usize,
+    b: &UsmBuffer<T>,
+    ldb: usize,
+    beta: T,
+    c: &mut UsmBuffer<T>,
+    ldc: usize,
+) -> Result<()> {
+    same_queue(queue, &[a.queue(), b.queue(), c.queue()])?;
+    queue.scope(|s| {
+        let (a, b, c) = (s.read(a)?, s.read(b)?, s.write(c)?);
+        s.hemm(side, uplo, m, n, alpha, &a, lda, &b, ldb, beta, &c, ldc)?;
+        Ok(())
+    })
+}
+
+/// `C = alpha * op(A) * op(A)^H + beta * C`, `C` Hermitian `n x n`, only the `uplo` triangle updated; `alpha` and `beta` are real. Blocking.
+///
+/// # Errors
+///
+/// As for [`syrk`].
+#[allow(clippy::too_many_arguments)]
+pub fn herk<T: Hermitian3>(
+    queue: &Queue,
+    uplo: Uplo,
+    trans: Transpose,
+    n: usize,
+    k: usize,
+    alpha: T::Real,
+    a: &UsmBuffer<T>,
+    lda: usize,
+    beta: T::Real,
+    c: &mut UsmBuffer<T>,
+    ldc: usize,
+) -> Result<()> {
+    same_queue(queue, &[a.queue(), c.queue()])?;
+    queue.scope(|s| {
+        let (a, c) = (s.read(a)?, s.write(c)?);
+        s.herk(uplo, trans, n, k, alpha, &a, lda, beta, &c, ldc)?;
+        Ok(())
+    })
+}
+
+/// `C = alpha * op(A) * op(B)^H + conj(alpha) * op(B) * op(A)^H + beta * C`, `C` Hermitian `n x n`, only the `uplo` triangle updated; `beta` is real. Blocking.
+///
+/// # Errors
+///
+/// As for [`syr2k`].
+#[allow(clippy::too_many_arguments)]
+pub fn her2k<T: Hermitian3>(
+    queue: &Queue,
+    uplo: Uplo,
+    trans: Transpose,
+    n: usize,
+    k: usize,
+    alpha: T,
+    a: &UsmBuffer<T>,
+    lda: usize,
+    b: &UsmBuffer<T>,
+    ldb: usize,
+    beta: T::Real,
+    c: &mut UsmBuffer<T>,
+    ldc: usize,
+) -> Result<()> {
+    same_queue(queue, &[a.queue(), b.queue(), c.queue()])?;
+    queue.scope(|s| {
+        let (a, b, c) = (s.read(a)?, s.read(b)?, s.write(c)?);
+        s.her2k(uplo, trans, n, k, alpha, &a, lda, &b, ldb, beta, &c, ldc)?;
         Ok(())
     })
 }

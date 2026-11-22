@@ -247,6 +247,43 @@ BF_API void *bf_dgemm_async(void *q, int32_t ta, int32_t tb, int64_t m, int64_t 
   return gemm_async(q, ta, tb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, deps, n_deps);
 }
 
+// Strided batched GEMM (non-blocking, as `gemm_async`): `batch` independent products
+// `C[i] = alpha * op(A[i]) * op(B[i]) + beta * C[i]`, operand `i` at `base + i * stride_*` elements.
+namespace {
+template <class TY>
+void *gemm_batch_strided_async(void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t k,
+                               TY alpha, const TY *a, int64_t lda, int64_t stride_a, const TY *b,
+                               int64_t ldb, int64_t stride_b, TY beta, TY *c, int64_t ldc,
+                               int64_t stride_c, int64_t batch, void *const *deps,
+                               int64_t n_deps) {
+  void *out = nullptr;
+  bf::guard_mkl([&] {
+    out = bf::new_event(oneapi::mkl::blas::column_major::gemm_batch(
+                            Q(q), T(ta), T(tb), m, n, k, alpha, a, lda, stride_a, b, ldb,
+                            stride_b, beta, c, ldc, stride_c, batch,
+                            bf::deps_chained(*bf::Store(q), deps, n_deps)),
+                        bf::Store(q));
+  });
+  return out;
+}
+} // namespace
+
+BF_API void *bf_sgemm_batch_strided_async(
+    void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t k, float alpha, const float *a,
+    int64_t lda, int64_t stride_a, const float *b, int64_t ldb, int64_t stride_b, float beta, float *c,
+    int64_t ldc, int64_t stride_c, int64_t batch, void *const *deps, int64_t n_deps) {
+  return gemm_batch_strided_async(q, ta, tb, m, n, k, alpha, a, lda, stride_a, b, ldb, stride_b,
+                                  beta, c, ldc, stride_c, batch, deps, n_deps);
+}
+
+BF_API void *bf_dgemm_batch_strided_async(
+    void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t k, double alpha, const double *a,
+    int64_t lda, int64_t stride_a, const double *b, int64_t ldb, int64_t stride_b, double beta, double *c,
+    int64_t ldc, int64_t stride_c, int64_t batch, void *const *deps, int64_t n_deps) {
+  return gemm_batch_strided_async(q, ta, tb, m, n, k, alpha, a, lda, stride_a, b, ldb, stride_b,
+                                  beta, c, ldc, stride_c, batch, deps, n_deps);
+}
+
 // Diagnostic for tests and A/B runs: turn the asynchronous submission chain on (1) or off (0).
 BF_API void bf_test_set_async_chain(int32_t on) { bf::async_chain_flag().store(on != 0); }
 
