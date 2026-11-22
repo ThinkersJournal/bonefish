@@ -47,6 +47,10 @@ const MKL_FUNCS: &[&str] = &[
     "bf_dgemm_async",
     "bf_sgemm_batch_strided_async",
     "bf_dgemm_batch_strided_async",
+    "bf_hgemm_async",
+    "bf_hgemm_f32_async",
+    "bf_bgemm_async",
+    "bf_bgemm_f32_async",
     "bf_saxpy_async",
     "bf_sscal_async",
     "bf_scopy_async",
@@ -618,6 +622,42 @@ mod counter {
             );
             assert_eq!(unsafe { bf_event_wait(e) }, 0);
             unsafe { bf_event_free(e) };
+            // Half-precision gemm: the device may not run a variant (the event is then null), so
+            // only the lock counter is asserted: each call must enter the oneMKL lock exactly once.
+            macro_rules! half_lock {
+                ($f:ident) => {{
+                    let (d, e) = moved(|| unsafe {
+                        $f(
+                            q,
+                            0,
+                            0,
+                            2,
+                            2,
+                            2,
+                            1.0,
+                            m32.p.cast(),
+                            2,
+                            m32.p.cast(),
+                            2,
+                            0.0,
+                            c32.p.cast(),
+                            2,
+                            std::ptr::null(),
+                            0,
+                        )
+                    });
+                    seen.push(stringify!($f));
+                    assert_eq!(d, 1, "{} moved the counter by {d}, not 1", stringify!($f));
+                    if !e.is_null() {
+                        assert_eq!(unsafe { bf_event_wait(e) }, 0);
+                        unsafe { bf_event_free(e) };
+                    }
+                }};
+            }
+            half_lock!(bf_hgemm_async);
+            half_lock!(bf_hgemm_f32_async);
+            half_lock!(bf_bgemm_async);
+            half_lock!(bf_bgemm_f32_async);
         }
 
         async_calls!(

@@ -804,4 +804,84 @@ unsafe extern "C" {
         deps: *const *mut c_void,
         n_deps: i64,
     ) -> *mut c_void;
+    /// Half-precision `gemm` (half, half, half, half): C is half, alpha/beta cross as f32 and are converted; internal accumulation unstated. A and B are raw 16-bit words (`u16`); non-blocking, returns the event (null on failure, including a device that lacks the variant).
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_hgemm_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f32,
+        a: *const u16,
+        lda: i64,
+        b: *const u16,
+        ldb: i64,
+        beta: f32,
+        c: *mut u16,
+        ldc: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+    /// Half-precision `gemm` (half, half, f32, f32): f32 output. A and B are raw 16-bit words (`u16`); non-blocking, returns the event (null on failure, including a device that lacks the variant).
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_hgemm_f32_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f32,
+        a: *const u16,
+        lda: i64,
+        b: *const u16,
+        ldb: i64,
+        beta: f32,
+        c: *mut f32,
+        ldc: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+    /// Half-precision `gemm` (bf16, bf16, bf16, f32): C is bf16, f32 scalars. A and B are raw 16-bit words (`u16`); non-blocking, returns the event (null on failure, including a device that lacks the variant).
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_bgemm_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f32,
+        a: *const u16,
+        lda: i64,
+        b: *const u16,
+        ldb: i64,
+        beta: f32,
+        c: *mut u16,
+        ldc: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+    /// Half-precision `gemm` (bf16, bf16, f32, f32): f32 output. A and B are raw 16-bit words (`u16`); non-blocking, returns the event (null on failure, including a device that lacks the variant).
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_bgemm_f32_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f32,
+        a: *const u16,
+        lda: i64,
+        b: *const u16,
+        ldb: i64,
+        beta: f32,
+        c: *mut f32,
+        ldc: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
 }
