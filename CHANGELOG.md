@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.41
+
+- `bonefish-sys` shim (R2, async): complex level 3 `c/z` `symm`, `hemm`, `syrk`, `herk`, `syr2k`, `her2k`, `trmm`, `trsm`; `tests/complex_level3.rs` hand-value tests; mkl_lock classifies all sixteen. `bonefish` (R15): `Scope` split into `scope/{dft,level1,level3}.rs`, no API change. `bonefish` (R3): `Level3` now covers `Complex<f32/f64>`; new `Hermitian3` (`hemm`, `herk`, `her2k`, real alpha/beta for `herk`) blocking and on `Scope`; new `tests/complex_level3.rs`. CPU/OpenCL only; GPU UNVERIFIED. Batched, half/bf16 level 3 not done; #40 still unreproduced. (0.0.41 is a placeholder; the gate allocates the number.)
+
 ## 0.0.40
 
 - `bonefish-sys` shim (R2, blocking and async, `f32` and `f64`): level 3 `symm`, `syrk`, `syr2k`, `trmm`, `trsm` (side 0 left / 1 right, uplo 0 upper / 1 lower, diag 0 non-unit / 1 unit). New `tests/level3.rs` (8 hand-value tests, the untouched triangle poisoned, trmm/trsm round trip, unit diagonal) and the oneMKL lock classification and counter test cover all twenty entry points. CPU/OpenCL device only; GPU UNVERIFIED. Batched, half/bf16 and complex level 3 not yet in the shim; no safe-API wrapper yet (R3).
