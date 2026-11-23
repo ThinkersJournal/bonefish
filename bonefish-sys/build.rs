@@ -66,6 +66,7 @@ fn main() {
         "shim/devices.cpp",
         "shim/dftr.cpp",
         "shim/complex.cpp",
+        "shim/half.cpp",
     ])
     .arg("-o")
     .arg(&lib);
