@@ -16,6 +16,7 @@ name = "bonefish"
 version = "0.0.42"
 dependencies = [
  "bonefish-sys",
+ "half",
 ]
 
 [[package]]

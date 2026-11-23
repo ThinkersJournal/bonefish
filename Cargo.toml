@@ -9,6 +9,7 @@ readme = "README.md"
 publish = false
 
 [dependencies]
+half = "2.7.1"
 bonefish-sys = { version = "0.0.42", path = "bonefish-sys" }
 
 [workspace]
