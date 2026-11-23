@@ -4,6 +4,7 @@
 
 use bonefish_sys::*;
 use std::ffi::{CStr, c_void};
+mod common;
 
 fn err() -> String {
     unsafe { CStr::from_ptr(bf_last_error()) }
@@ -16,6 +17,7 @@ struct Env {
 }
 impl Env {
     fn new() -> Self {
+        common::arm();
         let q = unsafe { bf_queue_new(1) };
         assert!(!q.is_null(), "no CPU SYCL device: {}", err());
         Env { q }

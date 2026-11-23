@@ -5,6 +5,8 @@
 //! diagnosable. Without the variable there is no dump and the limit is the default.
 //! A thread stack dump needs a debugger (`cdb` on Windows); without one the dump says so and
 //! lists thread ids and wait states instead.
+// Shared by several test binaries, each of which uses only part of it.
+#![allow(dead_code)]
 use std::time::Duration;
 
 pub const FLAG: &str = "BONEFISH_TEST_WATCHDOG_SECS";
@@ -95,12 +97,28 @@ pub fn process_state() -> String {
     s
 }
 
-#[test]
-fn state_dump_names_this_process_and_threads() {
-    let s = process_state();
-    assert!(s.contains(&format!("pid {}", std::process::id())), "{s}");
-    assert!(
-        s.contains(if cfg!(windows) { "tid " } else { "threads:" }),
-        "{s}"
-    );
+/// Per-binary watchdog for tests that do not wrap their bodies: when the flag is set, the first
+/// call starts a detached thread that, `n` seconds later, prints the process-state dump and
+/// aborts the process (a hung binary is the bonefish#40 symptom; these binaries normally finish
+/// in seconds). Idempotent; does nothing without the flag.
+pub fn arm() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let (limit, on) = config();
+        if on {
+            std::thread::spawn(move || {
+                std::thread::sleep(limit);
+                // Raw stderr, not eprintln!: the harness captures eprintln! from test threads and
+                // the abort below would discard it.
+                use std::io::Write;
+                let _ = writeln!(
+                    std::io::stderr(),
+                    "bonefish watchdog: test binary still running after {limit:?} (bonefish#40)
+{}",
+                    process_state()
+                );
+                std::process::abort();
+            });
+        }
+    });
 }

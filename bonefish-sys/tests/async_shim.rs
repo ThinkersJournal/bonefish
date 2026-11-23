@@ -6,6 +6,7 @@
 use bonefish_sys::*;
 use std::ffi::{CStr, c_void};
 use std::sync::Mutex;
+mod common;
 
 // Async errors are per-thread and queue state is process-wide in the runtime; run these one at a
 // time so one test's in-flight work cannot colour another's.
@@ -45,6 +46,7 @@ fn last_error() -> String {
 struct Queue(*mut c_void);
 impl Queue {
     fn new() -> Self {
+        common::arm();
         let q = unsafe { bf_queue_new(1) };
         assert!(!q.is_null(), "no CPU SYCL device: {}", last_error());
         Queue(q)

@@ -20,6 +20,7 @@
 //! oneMKL. That is a review question, which is why the classification is a short explicit list.
 
 use std::collections::BTreeSet;
+mod common;
 
 /// Functions that call oneMKL and must take the lock.
 const MKL_FUNCS: &[&str] = &[
@@ -467,6 +468,7 @@ mod counter {
 
     #[test]
     fn every_onemkl_function_takes_the_lock_exactly_once() {
+        common::arm();
         let q = unsafe { bf_queue_new(1) };
         assert!(!q.is_null(), "no CPU SYCL device");
         let mut seen: Vec<&'static str> = Vec::new();

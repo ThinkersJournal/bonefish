@@ -452,3 +452,13 @@ fn three_dimensional_forward_matches_the_naive_half_spectrum() {
         }
     });
 }
+
+#[test]
+fn state_dump_names_this_process_and_threads() {
+    let s = common::process_state();
+    assert!(s.contains(&format!("pid {}", std::process::id())), "{s}");
+    assert!(
+        s.contains(if cfg!(windows) { "tid " } else { "threads:" }),
+        "{s}"
+    );
+}
