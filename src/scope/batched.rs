@@ -11,7 +11,7 @@ use crate::blas::{Transpose, check_matrix, dim};
 use crate::error::{Error, Result};
 use crate::scalar::Scalar;
 
-/// Element types with a strided batched `gemm`: `f32` and `f64`. Sealed through [`Element`].
+/// Element types with a strided batched `gemm`: `f32` and `f64`. Sealed through `Element`.
 pub trait BatchedGemm: Scalar {
     /// # Safety
     /// Pointers are USM from `q`; operand `i` of `batch` lies at `base + i * stride` and covers
@@ -85,6 +85,7 @@ impl_batched!(f64, bf_dgemm_batch_strided_async);
 
 /// Check `batch` column-major `rows x cols` matrices, `ld` apart in rows, `stride` elements apart,
 /// fit in `len`. `distinct` additionally requires the matrices not to overlap (outputs).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn check_batched(
     name: &str,
     len: usize,

@@ -23,7 +23,11 @@ fn f16_bits(x: f32) -> u16 {
     let sign = ((b >> 16) & 0x8000) as u16;
     let exp = ((b >> 23) & 0xff) as i32 - 127 + 15;
     assert!((1..31).contains(&exp), "{x} is not a normal binary16");
-    assert_eq!(b & 0x1fff, 0, "{x} is not exactly representable in binary16");
+    assert_eq!(
+        b & 0x1fff,
+        0,
+        "{x} is not exactly representable in binary16"
+    );
     sign | ((exp as u16) << 10) | ((b >> 13) & 0x3ff) as u16
 }
 
@@ -121,7 +125,26 @@ fn run16(name: &str, f: Half16, enc: fn(f32) -> u16, dec: fn(u16) -> f32) {
     assert!(!q.is_null(), "no CPU SYCL device: {}", err());
     let (a, b) = (shared(q, &A.map(enc)), shared(q, &B.map(enc)));
     let c = shared(q, &[0u16; 4]);
-    let ev = unsafe { f(q, 0, 0, 2, 2, 2, 2.0, a, 2, b, 2, 0.0, c, 2, std::ptr::null(), 0) };
+    let ev = unsafe {
+        f(
+            q,
+            0,
+            0,
+            2,
+            2,
+            2,
+            2.0,
+            a,
+            2,
+            b,
+            2,
+            0.0,
+            c,
+            2,
+            std::ptr::null(),
+            0,
+        )
+    };
     if finish(ev, name) {
         let got: Vec<f32> = unsafe { std::slice::from_raw_parts(c, 4) }
             .iter()
@@ -141,7 +164,26 @@ fn run_f32(name: &str, f: HalfF32, enc: fn(f32) -> u16) {
     assert!(!q.is_null(), "no CPU SYCL device: {}", err());
     let (a, b) = (shared(q, &A.map(enc)), shared(q, &B.map(enc)));
     let c = shared(q, &[0f32; 4]);
-    let ev = unsafe { f(q, 0, 0, 2, 2, 2, 2.0, a, 2, b, 2, 0.0, c, 2, std::ptr::null(), 0) };
+    let ev = unsafe {
+        f(
+            q,
+            0,
+            0,
+            2,
+            2,
+            2,
+            2.0,
+            a,
+            2,
+            b,
+            2,
+            0.0,
+            c,
+            2,
+            std::ptr::null(),
+            0,
+        )
+    };
     if finish(ev, name) {
         assert_eq!(unsafe { std::slice::from_raw_parts(c, 4) }, &WANT, "{name}");
         eprintln!("RAN {name}");

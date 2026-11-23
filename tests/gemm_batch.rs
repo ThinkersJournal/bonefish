@@ -34,7 +34,10 @@ fn blocking_f64() {
     };
     let (a, b, mut c) = (buf(&q, &A), buf(&q, &B), buf(&q, &[0.0f64; 8]));
     let no = Transpose::No;
-    gemm_batch_strided(&q, no, no, 2, 2, 2, 1.0, &a, 2, 4, &b, 2, 4, 0.0, &mut c, 2, 4, 2).unwrap();
+    gemm_batch_strided(
+        &q, no, no, 2, 2, 2, 1.0, &a, 2, 4, &b, 2, 4, 0.0, &mut c, 2, 4, 2,
+    )
+    .unwrap();
     assert_eq!(c.to_vec().unwrap(), WANT);
 }
 
@@ -46,8 +49,10 @@ fn blocking_f32() {
     let f = |v: &[f64]| v.iter().map(|&x| x as f32).collect::<Vec<_>>();
     let (a, b, mut c) = (buf(&q, &f(&A)), buf(&q, &f(&B)), buf(&q, &[0.0f32; 8]));
     let no = Transpose::No;
-    gemm_batch_strided(&q, no, no, 2, 2, 2, 1.0f32, &a, 2, 4, &b, 2, 4, 0.0, &mut c, 2, 4, 2)
-        .unwrap();
+    gemm_batch_strided(
+        &q, no, no, 2, 2, 2, 1.0f32, &a, 2, 4, &b, 2, 4, 0.0, &mut c, 2, 4, 2,
+    )
+    .unwrap();
     assert_eq!(c.to_vec().unwrap(), f(&WANT));
 }
 
@@ -61,8 +66,14 @@ fn stride_zero_reuses_one_matrix() {
     let b = buf(&q, &[1.0, 0.0, 0.0, 1.0, 2.0, 0.0, 0.0, 2.0]);
     let mut c = buf(&q, &[0.0f64; 8]);
     let no = Transpose::No;
-    gemm_batch_strided(&q, no, no, 2, 2, 2, 1.0, &a, 2, 0, &b, 2, 4, 0.0, &mut c, 2, 4, 2).unwrap();
-    assert_eq!(c.to_vec().unwrap(), vec![1.0, 3.0, 2.0, 4.0, 2.0, 6.0, 4.0, 8.0]);
+    gemm_batch_strided(
+        &q, no, no, 2, 2, 2, 1.0, &a, 2, 0, &b, 2, 4, 0.0, &mut c, 2, 4, 2,
+    )
+    .unwrap();
+    assert_eq!(
+        c.to_vec().unwrap(),
+        vec![1.0, 3.0, 2.0, 4.0, 2.0, 6.0, 4.0, 8.0]
+    );
 }
 
 #[test]
@@ -85,16 +96,22 @@ fn extents_and_strides_are_checked() {
     let (a, b, mut c) = (buf(&q, &A), buf(&q, &B), buf(&q, &[0.0f64; 8]));
     let no = Transpose::No;
     // The whole batch must fit: 3 matrices at stride 4 need 12 elements.
-    let r = gemm_batch_strided(&q, no, no, 2, 2, 2, 1.0, &a, 2, 4, &b, 2, 4, 0.0, &mut c, 2, 4, 3);
+    let r = gemm_batch_strided(
+        &q, no, no, 2, 2, 2, 1.0, &a, 2, 4, &b, 2, 4, 0.0, &mut c, 2, 4, 3,
+    );
     assert!(matches!(r, Err(Error::InvalidArgument(_))), "{r:?}");
     // Outputs must not overlap: stride_c 2 is below one 2 x 2 matrix.
-    let r = gemm_batch_strided(&q, no, no, 2, 2, 2, 1.0, &a, 2, 4, &b, 2, 4, 0.0, &mut c, 2, 2, 2);
+    let r = gemm_batch_strided(
+        &q, no, no, 2, 2, 2, 1.0, &a, 2, 4, &b, 2, 4, 0.0, &mut c, 2, 2, 2,
+    );
     assert!(matches!(r, Err(Error::InvalidArgument(_))), "{r:?}");
     // Same-buffer output is refused (through the scope form, which sees the aliasing).
     let r = q.scope(|s| {
         let b2 = s.read(&b)?;
         let a2 = s.write(&mut c)?;
-        s.gemm_batch_strided(no, no, 2, 2, 2, 1.0, &a2, 2, 4, &b2, 2, 4, 0.0, &a2, 2, 4, 2)?;
+        s.gemm_batch_strided(
+            no, no, 2, 2, 2, 1.0, &a2, 2, 4, &b2, 2, 4, 0.0, &a2, 2, 4, 2,
+        )?;
         Ok(())
     });
     assert!(matches!(r, Err(Error::InvalidArgument(_))), "{r:?}");
