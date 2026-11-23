@@ -2,7 +2,7 @@
 
 ## 0.0.43
 
-- `bonefish` (R5c): safe half-precision `gemm` on `Scope`, one method per oneMKL variant so the accumulation is explicit in the name: `hgemm` (`f16`, `f16` out; internal accumulation unstated by oneMKL), `hgemm_f32` (`f16`, `f32` out), `bgemm` (`bf16`, `bf16` out, f32 scalars), `bgemm_f32` (`bf16`, `f32` out). `alpha`/`beta` are `f32`. New dependency `half` 2.7.1 (re-exported as `bonefish::half`); `f16`/`bf16` are now `Element`s. Extents and output aliasing checked in Rust. New `tests/gemm_half.rs`: all four RAN on the CPU/OpenCL device (hand values), a refused variant prints `NOT RUN` and `BONEFISH_REQUIRE_HALF=1` makes it a failure. GPU UNVERIFIED. No blocking `blas::` form, no `gemm_row_major` yet. (0.0.43 is a placeholder; the gate allocates the number.)
+- `bonefish` (R5c): safe half-precision `gemm` on `Scope`, one method per oneMKL variant so the accumulation is explicit in the name: `hgemm` (`f16`, `f16` out; internal accumulation unstated by oneMKL), `hgemm_f32` (`f16`, `f32` out), `bgemm` (`bf16`, `bf16` out, f32 scalars), `bgemm_f32` (`bf16`, `f32` out). `alpha`/`beta` are `f32`. New dependency `half` 2.7.1 (re-exported as `bonefish::half`); `f16`/`bf16` are now `Element`s. Extents and output aliasing checked in Rust. New `tests/gemm_half.rs`: all four RAN on the CPU/OpenCL device (hand values), a refused variant prints `NOT RUN` and `BONEFISH_REQUIRE_HALF=1` makes it a failure. GPU UNVERIFIED. Blocking forms `blas::{hgemm, hgemm_f32, bgemm, bgemm_f32}` (queue-mismatch checked; tests with `BONEFISH_REQUIRE_HALF=1`). No `gemm_row_major` yet. (0.0.43 is a placeholder; the gate allocates the number.)
 
 ## 0.0.42
 

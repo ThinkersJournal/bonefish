@@ -130,3 +130,63 @@ fn extents_and_aliasing_are_checked() {
     // Nothing ran: C is untouched.
     assert_eq!(c.to_vec().unwrap(), vec![f16::ZERO; 4]);
 }
+
+macro_rules! blocking {
+    ($test:ident, $func:ident, $a:ty, $c:ty, $conv:expr, $back:expr) => {
+        #[test]
+        fn $test() {
+            let Some(q) = queue(stringify!($test)) else {
+                return;
+            };
+            let to: fn(f32) -> $a = $conv;
+            let from: fn($c) -> f32 = $back;
+            let a = buf(&q, &A.map(to));
+            let b = buf(&q, &B.map(to));
+            let mut c = buf(&q, &[<$c as bonefish::Element>::ZERO; 4]);
+            let no = Transpose::No;
+            let r = bonefish::blas::$func(&q, no, no, 2, 2, 2, 2.0, &a, 2, &b, 2, 0.0, &mut c, 2);
+            if ran(stringify!($func), r) {
+                let got: Vec<f32> = c.to_vec().unwrap().into_iter().map(from).collect();
+                assert_eq!(got, WANT.to_vec());
+            }
+        }
+    };
+}
+
+blocking!(blocking_hgemm, hgemm, f16, f16, f16::from_f32, f16::to_f32);
+blocking!(
+    blocking_hgemm_f32,
+    hgemm_f32,
+    f16,
+    f32,
+    f16::from_f32,
+    |x| x
+);
+blocking!(
+    blocking_bgemm,
+    bgemm,
+    bf16,
+    bf16,
+    bf16::from_f32,
+    bf16::to_f32
+);
+blocking!(
+    blocking_bgemm_f32,
+    bgemm_f32,
+    bf16,
+    f32,
+    bf16::from_f32,
+    |x| x
+);
+
+#[test]
+fn blocking_rejects_foreign_queue_buffer() {
+    let Some(q) = queue("foreign") else { return };
+    let q2 = Queue::new(DeviceKind::Cpu).unwrap();
+    let a = buf(&q2, &A.map(f16::from_f32));
+    let b = buf(&q, &B.map(f16::from_f32));
+    let mut c = buf(&q, &[f16::ZERO; 4]);
+    let no = Transpose::No;
+    let r = bonefish::blas::hgemm(&q, no, no, 2, 2, 2, 1.0, &a, 2, &b, 2, 0.0, &mut c, 2);
+    assert!(matches!(r, Err(Error::QueueMismatch)), "{r:?}");
+}
