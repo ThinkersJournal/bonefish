@@ -53,7 +53,7 @@ macro_rules! variant {
     ($test:ident, $method:ident, $a:ty, $c:ty, $conv:expr, $back:expr) => {
         #[test]
         fn $test() {
-    common::arm();
+            common::arm();
             let Some(q) = queue(stringify!($test)) else {
                 return;
             };
@@ -140,7 +140,7 @@ macro_rules! blocking {
     ($test:ident, $func:ident, $a:ty, $c:ty, $conv:expr, $back:expr) => {
         #[test]
         fn $test() {
-    common::arm();
+            common::arm();
             let Some(q) = queue(stringify!($test)) else {
                 return;
             };

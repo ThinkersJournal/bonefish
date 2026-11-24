@@ -202,7 +202,7 @@ macro_rules! race_test {
     ($name:ident, $threads:expr, $shared:expr, $work:ident) => {
         #[test]
         fn $name() {
-    common::arm();
+            common::arm();
             if have_sycl(stringify!($name)) {
                 race(stringify!($name), $threads, $shared, $work);
             }
