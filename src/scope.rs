@@ -58,6 +58,7 @@ use crate::usm::UsmBuffer;
 
 mod batched;
 mod dft;
+mod event;
 mod half_batched;
 mod half_gemm;
 mod level1;
@@ -98,82 +99,6 @@ impl<T: Element> Operand<T> for Read<'_, T> {
 impl<T: Element> Operand<T> for Write<'_, T> {
     fn buffer(&self) -> &UsmBuffer<T> {
         self.buf
-    }
-}
-
-/// A handle to submitted device work. It cannot outlive its scope. Dropping it only releases the
-/// handle (the work still completes and the scope still waits for it), so leaking one costs
-/// memory, never safety.
-pub struct Event<'scope> {
-    raw: NonNull<c_void>,
-    /// Its queue was created with profiling.
-    profiling: bool,
-    _scope: PhantomData<&'scope mut &'scope ()>,
-}
-
-/// Device-side timing of the work behind an [`Event`], in nanoseconds on the device's own clock.
-/// Only differences between values from the same device are meaningful.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct DeviceTime {
-    /// When the work started on the device.
-    pub start_ns: u64,
-    /// When it finished.
-    pub end_ns: u64,
-}
-
-impl DeviceTime {
-    /// `end - start`.
-    #[must_use]
-    pub fn duration_ns(&self) -> u64 {
-        self.end_ns.saturating_sub(self.start_ns)
-    }
-}
-
-impl Event<'_> {
-    /// Device start and end time of this operation (SYCL `command_start` / `command_end`). Waits
-    /// for the operation first.
-    ///
-    /// # Errors
-    ///
-    /// [`Error::InvalidArgument`] if the queue was not created with profiling
-    /// ([`Queue::new_profiling`]): an error, never a zero. Otherwise the asynchronous error, if the
-    /// operation failed.
-    pub fn device_time(&self) -> Result<DeviceTime> {
-        if !self.profiling {
-            return Err(Error::InvalidArgument(
-                "this event's queue was not created with profiling (Queue::new_profiling)".into(),
-            ));
-        }
-        let (mut start_ns, mut end_ns) = (0_u64, 0_u64);
-        // SAFETY: `raw` is a live event handle; both outputs are valid for writes.
-        check(unsafe {
-            sys::bf_event_profiling(self.raw.as_ptr(), &raw mut start_ns, &raw mut end_ns)
-        })?;
-        Ok(DeviceTime { start_ns, end_ns })
-    }
-
-    /// Wait for this operation and everything before it on the queue.
-    ///
-    /// # Errors
-    ///
-    /// The asynchronous error, if the operation failed after submission.
-    pub fn wait(&self) -> Result<()> {
-        // SAFETY: `raw` is a live event handle owned by `self`.
-        check(unsafe { sys::bf_event_wait(self.raw.as_ptr()) })
-    }
-}
-
-impl Drop for Event<'_> {
-    fn drop(&mut self) {
-        // SAFETY: `raw` came from a `*_async` call and is freed exactly once, here. Freeing a
-        // handle does not cancel or wait for the work.
-        unsafe { sys::bf_event_free(self.raw.as_ptr()) }
-    }
-}
-
-impl std::fmt::Debug for Event<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Event").finish_non_exhaustive()
     }
 }
 
@@ -502,11 +427,7 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
     /// Wrap the event handle a `*_async` call returned, or turn its failure into an error.
     fn event(&'scope self, raw: *mut c_void) -> Result<Event<'scope>> {
         match NonNull::new(raw) {
-            Some(raw) => Ok(Event {
-                raw,
-                profiling: self.queue.is_profiling(),
-                _scope: PhantomData,
-            }),
+            Some(raw) => Ok(Event::new(raw, self.queue.is_profiling())),
             None if !sys::SYCL_AVAILABLE => Err(Error::Unavailable(last_message())),
             None => Err(Error::Other(format!(
                 "submission failed: {}",
@@ -566,6 +487,7 @@ fn distinct<A: Element, B: Element>(
 
 pub use batched::BatchedGemm;
 pub use dft::{Plan, RealPlan};
+pub use event::{DeviceTime, Event};
 
 const NO_DEPS: *const *mut c_void = std::ptr::null();
 
