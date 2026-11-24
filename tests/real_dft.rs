@@ -1,6 +1,9 @@
 //! `RealDft`: real <-> half-spectrum complex (R3b). Needs a device; without oneAPI the tests skip
 //! loudly unless `BONEFISH_REQUIRE_SYCL=1`. CPU/OpenCL device only; the layout is UNVERIFIED on a GPU.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::{Complex, DeviceKind, Error, Queue, RealDft, SYCL_AVAILABLE, UsmBuffer, UsmKind};
 use std::f64::consts::PI;
 
@@ -62,6 +65,7 @@ fn max_err(got: &[Complex<f64>], want: &[Complex<f64>]) -> f64 {
 
 #[test]
 fn forward_matches_the_naive_half_spectrum_in_one_two_and_three_dimensions() {
+    common::arm();
     let Some(q) = queue("forward") else { return };
     for dims in [
         vec![7_usize],
@@ -89,6 +93,7 @@ fn forward_matches_the_naive_half_spectrum_in_one_two_and_three_dimensions() {
 
 #[test]
 fn a_round_trip_with_the_inverse_scale_returns_the_input() {
+    common::arm();
     let Some(q) = queue("round_trip") else { return };
     for dims in [vec![9_usize], vec![4, 6]] {
         let n: usize = dims.iter().product();
@@ -108,6 +113,7 @@ fn a_round_trip_with_the_inverse_scale_returns_the_input() {
 
 #[test]
 fn single_precision_works_within_float_tolerance() {
+    common::arm();
     let Some(q) = queue("f32") else { return };
     let plan = RealDft::<f32>::new(&q, &[8], 1.0, 1.0).unwrap();
     let x = signal(8);
@@ -127,6 +133,7 @@ fn single_precision_works_within_float_tolerance() {
 
 #[test]
 fn refusals_come_before_the_device_is_touched() {
+    common::arm();
     let Some(q) = queue("refusals") else { return };
     // No dimensions, a zero length.
     assert!(matches!(
@@ -165,6 +172,7 @@ fn refusals_come_before_the_device_is_touched() {
 
 #[test]
 fn a_scoped_real_dft_matches_the_blocking_one_and_round_trips_in_one_scope() {
+    common::arm();
     let Some(q) = queue("scoped") else { return };
     for dims in [vec![9_usize], vec![4, 6]] {
         let n: usize = dims.iter().product();
@@ -202,6 +210,7 @@ fn a_scoped_real_dft_matches_the_blocking_one_and_round_trips_in_one_scope() {
 
 #[test]
 fn a_scoped_real_dft_refuses_short_buffers_and_a_foreign_plan() {
+    common::arm();
     let Some(q) = queue("scoped_refusals") else {
         return;
     };

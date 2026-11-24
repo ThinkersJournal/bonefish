@@ -2,6 +2,9 @@
 //! of 2, plus the extent and stride errors. Needs a device; without oneAPI the tests skip loudly
 //! unless `BONEFISH_REQUIRE_SYCL=1`. CPU/OpenCL device only; GPU UNVERIFIED.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::blas::gemm_batch_strided;
 use bonefish::{DeviceKind, Error, Queue, SYCL_AVAILABLE, Transpose, UsmBuffer, UsmKind};
 
@@ -29,6 +32,7 @@ const WANT: [f64; 8] = [1.0, 3.0, 2.0, 4.0, 2.0, 6.0, 4.0, 8.0];
 
 #[test]
 fn blocking_f64() {
+    common::arm();
     let Some(q) = queue("blocking_f64") else {
         return;
     };
@@ -43,6 +47,7 @@ fn blocking_f64() {
 
 #[test]
 fn blocking_f32() {
+    common::arm();
     let Some(q) = queue("blocking_f32") else {
         return;
     };
@@ -58,6 +63,7 @@ fn blocking_f32() {
 
 #[test]
 fn stride_zero_reuses_one_matrix() {
+    common::arm();
     let Some(q) = queue("stride_zero") else {
         return;
     };
@@ -78,6 +84,7 @@ fn stride_zero_reuses_one_matrix() {
 
 #[test]
 fn on_scope_matches_blocking() {
+    common::arm();
     let Some(q) = queue("on_scope") else { return };
     let (a, b, mut c) = (buf(&q, &A), buf(&q, &B), buf(&q, &[0.0f64; 8]));
     let no = Transpose::No;
@@ -92,6 +99,7 @@ fn on_scope_matches_blocking() {
 
 #[test]
 fn extents_and_strides_are_checked() {
+    common::arm();
     let Some(q) = queue("checks") else { return };
     let (a, b, mut c) = (buf(&q, &A), buf(&q, &B), buf(&q, &[0.0f64; 8]));
     let no = Transpose::No;

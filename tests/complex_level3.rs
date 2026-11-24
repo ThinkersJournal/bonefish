@@ -3,6 +3,9 @@
 //! Needs a device; without oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`.
 //! CPU/OpenCL device only; GPU UNVERIFIED.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::level3::{hemm, her2k, herk, trsm};
 use bonefish::{
     Complex, DeviceKind, Diag, Queue, SYCL_AVAILABLE, Side, Transpose, Uplo, UsmBuffer, UsmKind,
@@ -44,6 +47,7 @@ fn same(got: &UsmBuffer<Z>, want: &[Z], what: &str) {
 
 #[test]
 fn trsm_solves_a_complex_upper_system() {
+    common::arm();
     let Some(q) = queue("trsm") else { return };
     let p = z(99.0, 99.0);
     // A = [[2, 1+i], [0, 1]] (lower poisoned); X = [1+i, 2]; B = A X = [2(1+i) + 2(1+i), 2] = [4+4i, 2].
@@ -69,6 +73,7 @@ fn trsm_solves_a_complex_upper_system() {
 
 #[test]
 fn hemm_reads_only_the_upper_triangle() {
+    common::arm();
     let Some(q) = queue("hemm") else { return };
     let p = z(99.0, 99.0);
     // A = [[2, 1+i], [1-i, 3]] stored upper; B = [1, i]; A B = [2 + (1+i)i, (1-i) + 3i] = [1+i, 1+2i].
@@ -96,6 +101,7 @@ fn hemm_reads_only_the_upper_triangle() {
 
 #[test]
 fn herk_updates_only_the_upper_triangle_with_real_diagonal() {
+    common::arm();
     let Some(q) = queue("herk") else { return };
     let p = z(99.0, 99.0);
     // A = [1+i, 2] (2x1); A A^H = [[2, 2+2i], [2-2i, 4]]; only upper written, lower stays poison.
@@ -120,6 +126,7 @@ fn herk_updates_only_the_upper_triangle_with_real_diagonal() {
 
 #[test]
 fn her2k_uses_the_conjugate_of_alpha() {
+    common::arm();
     let Some(q) = queue("her2k") else { return };
     let p = z(99.0, 99.0);
     // A = [1+i, 2], B = [1, i], alpha = i, k = 1.

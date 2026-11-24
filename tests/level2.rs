@@ -3,6 +3,9 @@
 //! Needs a device; without oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`.
 //! CPU/OpenCL device only; GPU UNVERIFIED.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::level2::{gbmv, rotm, symv, syr, syr2, trmv, trsv};
 use bonefish::{
     DeviceKind, Diag, Error, Queue, SYCL_AVAILABLE, Transpose, Uplo, UsmBuffer, UsmKind,
@@ -37,6 +40,7 @@ fn sym3(uplo: Uplo) -> Vec<f64> {
 
 #[test]
 fn symv_reads_only_the_named_triangle() {
+    common::arm();
     let Some(q) = queue("symv") else { return };
     // S * [1,2,3] = [4,19,23]; y = 2 * that + 3 * [1,1,1].
     for uplo in [Uplo::Upper, Uplo::Lower] {
@@ -50,6 +54,7 @@ fn symv_reads_only_the_named_triangle() {
 
 #[test]
 fn symv_in_single_precision() {
+    common::arm();
     let Some(q) = queue("symv_f32") else { return };
     let p = POISON as f32;
     let a = buf(&q, &[2.0_f32, p, p, 1.0, 3.0, p, 0.0, 4.0, 5.0]);
@@ -61,6 +66,7 @@ fn symv_in_single_precision() {
 
 #[test]
 fn syr_updates_only_the_named_triangle() {
+    common::arm();
     let Some(q) = queue("syr") else { return };
     let x = buf(&q, &[1.0, 2.0, 3.0]);
     // A starts at 7 everywhere; += 2 x x^T on the upper triangle only.
@@ -81,6 +87,7 @@ fn syr_updates_only_the_named_triangle() {
 
 #[test]
 fn syr2_updates_only_the_named_triangle() {
+    common::arm();
     let Some(q) = queue("syr2") else { return };
     let (x, y) = (buf(&q, &[1.0, 2.0]), buf(&q, &[3.0, 4.0]));
     // x y^T + y x^T = [[6,10],[10,16]]; only the upper triangle is written.
@@ -97,6 +104,7 @@ fn tri3() -> Vec<f64> {
 
 #[test]
 fn trmv_covers_notrans_trans_and_unit_diagonal() {
+    common::arm();
     let Some(q) = queue("trmv") else { return };
     let a = buf(&q, &tri3());
     for (trans, diag, want) in [
@@ -113,6 +121,7 @@ fn trmv_covers_notrans_trans_and_unit_diagonal() {
 
 #[test]
 fn trsv_solves_exactly_and_undoes_trmv() {
+    common::arm();
     let Some(q) = queue("trsv") else { return };
     let a = buf(&q, &tri3());
     // z3 = 12/6 = 2, z2 = (13 - 5*2)/4 = 0.75, z1 = 14 - 2*0.75 - 3*2 = 6.5.
@@ -144,6 +153,7 @@ fn trsv_solves_exactly_and_undoes_trmv() {
 
 #[test]
 fn gbmv_tridiagonal_in_band_storage() {
+    common::arm();
     let Some(q) = queue("gbmv") else { return };
     // T = [[2,1,0],[3,4,1],[0,5,6]]: kl = ku = 1, lda = 3, entry (i,j) at ku + i - j + j * lda.
     let p = POISON;
@@ -193,6 +203,7 @@ fn gbmv_tridiagonal_in_band_storage() {
 
 #[test]
 fn rotm_applies_the_full_h_matrix() {
+    common::arm();
     let Some(q) = queue("rotm") else { return };
     // flag -1: full H. param = [flag, h11, h21, h12, h22] = [-1, 1, 3, 2, 4].
     let param = buf(&q, &[-1.0, 1.0, 3.0, 2.0, 4.0]);
@@ -205,6 +216,7 @@ fn rotm_applies_the_full_h_matrix() {
 
 #[test]
 fn bad_extents_are_refused_in_rust_and_the_good_case_passes() {
+    common::arm();
     let Some(q) = queue("level2_errors") else {
         return;
     };

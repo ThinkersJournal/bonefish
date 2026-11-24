@@ -2,6 +2,9 @@
 //! device; without oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`. CPU/OpenCL device
 //! only; nothing here has run on a GPU.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::{
     Complex, DeviceKind, Error, Queue, SYCL_AVAILABLE, Transpose, UsmBuffer, UsmKind, blas,
 };
@@ -114,6 +117,7 @@ fn stored(op: Transpose, rows: usize, cols: usize) -> (usize, usize) {
 
 #[test]
 fn double_precision_matches_the_naive_product_for_every_op_pair() {
+    common::arm();
     let Some(q) = queue("zgemm") else { return };
     let (m, n, k) = (5, 4, 3);
     let (alpha, beta) = ((0.5, -2.0), (1.0, 1.0)); // both parts non-zero
@@ -151,6 +155,7 @@ fn double_precision_matches_the_naive_product_for_every_op_pair() {
 
 #[test]
 fn single_precision_matches_within_float_tolerance() {
+    common::arm();
     let Some(q) = queue("cgemm") else { return };
     let (m, n, k) = (5, 4, 3);
     let (alpha, beta) = ((0.5, -2.0), (1.0, 1.0));
@@ -192,6 +197,7 @@ fn single_precision_matches_within_float_tolerance() {
 /// in `alpha` must change the answer (else the pointer hand-off could be wrong unnoticed).
 #[test]
 fn conjugation_and_the_scalar_halves_are_not_interchangeable() {
+    common::arm();
     let Some(q) = queue("controls") else { return };
     let (m, n, k) = (3, 3, 3);
     let (a, b, c0) = (values(9, 7), values(9, 8), vec![(0.0, 0.0); 9]);
@@ -264,6 +270,7 @@ fn conjugation_and_the_scalar_halves_are_not_interchangeable() {
 /// The scoped, non-blocking form gives the same answer as the blocking one.
 #[test]
 fn the_scoped_form_matches_the_blocking_one() {
+    common::arm();
     let Some(q) = queue("scoped") else { return };
     let (m, n, k) = (4, 5, 3);
     let (alpha, beta) = ((1.5, 0.25), (0.0, 1.0));
@@ -309,6 +316,7 @@ fn the_scoped_form_matches_the_blocking_one() {
 
 #[test]
 fn refusals_are_the_same_as_for_real_gemm() {
+    common::arm();
     let Some(q) = queue("refusals") else { return };
     let other = Queue::new(DeviceKind::Cpu).unwrap();
     let ok = UsmBuffer::<Complex<f64>>::zeroed(&q, UsmKind::Shared, 4).unwrap();

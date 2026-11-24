@@ -3,6 +3,9 @@
 //! that refuses a variant is reported as NOT RUN, never silently skipped, and fails the test when
 //! `BONEFISH_REQUIRE_HALF=1`. CPU/OpenCL device only; GPU UNVERIFIED.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::half::{bf16, f16};
 use bonefish::{DeviceKind, Error, Queue, SYCL_AVAILABLE, Transpose, UsmBuffer, UsmKind};
 
@@ -50,6 +53,7 @@ macro_rules! variant {
     ($test:ident, $method:ident, $a:ty, $c:ty, $conv:expr, $back:expr) => {
         #[test]
         fn $test() {
+    common::arm();
             let Some(q) = queue(stringify!($test)) else {
                 return;
             };
@@ -100,6 +104,7 @@ variant!(
 
 #[test]
 fn extents_and_aliasing_are_checked() {
+    common::arm();
     let Some(q) = queue("checks") else { return };
     let a = buf(&q, &A.map(f16::from_f32));
     let b = buf(&q, &B.map(f16::from_f32));
@@ -135,6 +140,7 @@ macro_rules! blocking {
     ($test:ident, $func:ident, $a:ty, $c:ty, $conv:expr, $back:expr) => {
         #[test]
         fn $test() {
+    common::arm();
             let Some(q) = queue(stringify!($test)) else {
                 return;
             };
@@ -181,6 +187,7 @@ blocking!(
 
 #[test]
 fn blocking_rejects_foreign_queue_buffer() {
+    common::arm();
     let Some(q) = queue("foreign") else { return };
     let q2 = Queue::new(DeviceKind::Cpu).unwrap();
     let a = buf(&q2, &A.map(f16::from_f32));

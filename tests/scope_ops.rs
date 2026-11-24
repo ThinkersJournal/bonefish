@@ -1,6 +1,9 @@
 //! Level 1, `gemv` and DFT inside `Queue::scope` (R3c step 3). Needs a device; without oneAPI the
 //! tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`. CPU/OpenCL device only; GPU UNVERIFIED.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::{
     Complex, DeviceKind, Dft, Error, Placement, Queue, SYCL_AVAILABLE, Transpose, UsmBuffer,
     UsmKind,
@@ -28,6 +31,7 @@ fn buf<T: bonefish::Element>(q: &Queue, data: &[T]) -> UsmBuffer<T> {
 /// is the end-to-end check of that, through the safe API.
 #[test]
 fn dot_straight_after_axpy_sees_the_axpy() {
+    common::arm();
     let Some(q) = queue("dot_after_axpy") else {
         return;
     };
@@ -51,6 +55,7 @@ fn dot_straight_after_axpy_sees_the_axpy() {
 
 #[test]
 fn level_1_operations_give_the_right_numbers() {
+    common::arm();
     let Some(q) = queue("level_1") else { return };
     let x = buf(&q, &[1.0_f64, -5.0, 3.0, 4.0]);
     let mut y = buf(&q, &[1.0_f64, 1.0, 1.0, 1.0]);
@@ -89,6 +94,7 @@ fn level_1_operations_give_the_right_numbers() {
 
 #[test]
 fn swap_and_strided_gemv_give_the_right_numbers() {
+    common::arm();
     let Some(q) = queue("swap_gemv") else { return };
     let mut a = buf(&q, &[1.0_f32, 2.0, 3.0]);
     let mut b = buf(&q, &[9.0_f32, 8.0, 7.0]);
@@ -115,6 +121,7 @@ fn swap_and_strided_gemv_give_the_right_numbers() {
 
 #[test]
 fn level_1_refusals_happen_before_anything_is_submitted() {
+    common::arm();
     let Some(q) = queue("refusals") else { return };
     let x = buf(&q, &[1.0_f64; 4]);
     let mut y = buf(&q, &[1.0_f64; 4]);
@@ -166,6 +173,7 @@ fn level_1_refusals_happen_before_anything_is_submitted() {
 
 #[test]
 fn an_in_place_dft_transforms_a_delta() {
+    common::arm();
     let Some(q) = queue("dft_in_place") else {
         return;
     };
@@ -207,6 +215,7 @@ fn an_in_place_dft_transforms_a_delta() {
 
 #[test]
 fn an_out_of_place_dft_leaves_its_input_alone_and_refuses_wrong_use() {
+    common::arm();
     let Some(q) = queue("dft_out_of_place") else {
         return;
     };
@@ -261,6 +270,7 @@ fn an_out_of_place_dft_leaves_its_input_alone_and_refuses_wrong_use() {
 
 #[test]
 fn a_plan_from_another_queue_is_rejected_at_binding() {
+    common::arm();
     let Some(q) = queue("plan_mismatch") else {
         return;
     };

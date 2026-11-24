@@ -24,6 +24,9 @@
 //! Needs a SYCL device; without oneAPI these skip loudly unless `BONEFISH_REQUIRE_SYCL=1`.
 //! CPU (OpenCL) device only; nothing here has run on a GPU.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
@@ -114,6 +117,7 @@ fn race(
 /// The marker traits, checked at compile time in both builds (no device needed).
 #[test]
 fn queue_and_buffers_are_send_and_sync() {
+    common::arm();
     fn send_sync<T: Send + Sync>() {}
     send_sync::<Queue>();
     send_sync::<UsmBuffer<f32>>();
@@ -198,6 +202,7 @@ macro_rules! race_test {
     ($name:ident, $threads:expr, $shared:expr, $work:ident) => {
         #[test]
         fn $name() {
+    common::arm();
             if have_sycl(stringify!($name)) {
                 race(stringify!($name), $threads, $shared, $work);
             }
@@ -228,6 +233,7 @@ race_test!(own_queue_per_thread_dft_4_threads, 4, false, dft_work);
 /// leak the allocation: the buffer holds its queue alive.
 #[test]
 fn a_buffer_can_be_moved_to_another_thread_and_outlive_the_original_queue_handle() {
+    common::arm();
     if !have_sycl("buffer_moves_threads") {
         return;
     }
