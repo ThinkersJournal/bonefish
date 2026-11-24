@@ -128,6 +128,40 @@ pub fn gemm<T: GemmElement>(
     Queue::status(rc)
 }
 
+/// [`gemm`] for row-major matrices: `C = alpha * op(A) * op(B) + beta * C`, blocking.
+///
+/// `op(A)` is `m x k`, `op(B)` is `k x n`, `C` is `m x n`, each stored row by row with a leading
+/// dimension (the distance between rows) of at least its column count. A row-major matrix is the
+/// column-major transpose of itself, so this is `C^T = op(B)^T * op(A)^T` run through [`gemm`]
+/// with the operands and `m`/`n` swapped. Bounds checks therefore name the operand as seen by
+/// that call: a message about `"A"` is about your `b`, and the reverse.
+///
+/// # Errors
+///
+/// As [`gemm`]: [`Error::QueueMismatch`], [`Error::InvalidArgument`] (a leading dimension below
+/// its column count, or a buffer too short), [`Error::Sycl`] / [`Error::Mkl`].
+#[allow(clippy::too_many_arguments)]
+pub fn gemm_row_major<T: GemmElement>(
+    queue: &Queue,
+    transa: Transpose,
+    transb: Transpose,
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: T,
+    a: &UsmBuffer<T>,
+    lda: usize,
+    b: &UsmBuffer<T>,
+    ldb: usize,
+    beta: T,
+    c: &mut UsmBuffer<T>,
+    ldc: usize,
+) -> Result<()> {
+    gemm(
+        queue, transb, transa, n, m, k, alpha, b, ldb, a, lda, beta, c, ldc,
+    )
+}
+
 /// Strided batched `c_i = alpha * op(a_i) * op(b_i) + beta * c_i` for `i < batch`, column-major,
 /// blocking; operand `i` is at `base + i * stride` elements (stride 0 on `a` or `b` reuses one
 /// matrix). `stride_c` must be at least one `c` matrix. `f32` and `f64`.
