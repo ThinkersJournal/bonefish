@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.44 (placeholder; number allocated by pm-assist at gate)
+
+- `bonefish` (R5c): `blas::gemm_row_major` (row-major `gemm`, the transposed column-major call with operands and `m`/`n` swapped; bounds-check messages name the operand as `gemm` sees it).
+- `bonefish`, `bonefish-sys` (R5c, R3): strided batched half-precision `gemm`, the four oneMKL `gemm_batch` variants: `Scope::{hgemm,hgemm_f32,bgemm,bgemm_f32}_batch_strided` and blocking `blas::` forms; shim `bf_{h,hf32,b,bf32}gemm_batch_strided_async` (alpha/beta cross as f32). Extents of the whole batch, `stride_c` and output aliasing are checked in Rust. Tested on the SYCL CPU (OpenCL) device only: transposed A, stride-0 shared B, padded strides and `ldc`, alpha and beta, f32 accumulation (3000-term dot). GPU UNVERIFIED. oneMKL has no other half/bf16 level 3 (`syrk`, `trsm` and the rest have no half declaration in `usm_decls.hpp`).
+- `bonefish-sycl-emit`, `bonefish-sycl-parse`: unpopped, unpopped-vocab, unpopped-convert 0.56.2 -> 0.56.5 (exact pins).
+
 ## 0.0.43
 
 - `bonefish-sys` shim (bonefish#40, Windows): the shim creates CRYPT32's default chain engine once (`warm_trust_engine`, a `WinVerifyTrust` on `tbb12.dll`) before the first queue or device enumeration. Cause found by stack dumps: Intel's OpenCL runtime loads `tbb12`, whose DllMain calls `WinVerifyTrust` under the loader lock, while an NVIDIA `nvdiagclt64` thread does the same from another thread; the two deadlocked inside CRYPT32 whenever several threads made their first queue together (`tests/level3.rs` hung, 4 of 4 processes within 35 runs without the change; 0 of 4 x 120 runs with it, same binary layout and loop). Vendor DLL bug worked around here, not fixed. A per-process queue mutex did NOT help (the lock is inside the vendor DLLs); `ONEAPI_DEVICE_SELECTOR` and `OCL_ICD_FILENAMES` did not either. New `tests/queue_concurrent.rs` (8 threads, first queues together, watchdog-guarded). The R17 per-test watchdog is also armed in every root-crate test binary (`BONEFISH_TEST_WATCHDOG_SECS`; process-state dump then abort). Measured on this laptop only (Windows, oneAPI 2026.1, NVIDIA + Intel OpenCL); no Linux or other GPU run.

@@ -272,6 +272,82 @@ blocking_half!(
     f32
 );
 
+macro_rules! blocking_half_batch {
+    ($(#[$doc:meta])* $name:ident, $a:ty, $c:ty) => {
+        $(#[$doc])*
+        ///
+        /// Blocking, column-major strided batched `c_i = alpha * op(a_i) * op(b_i) + beta * c_i`
+        /// for `i < batch`; operand `i` at `base + i * stride` elements, stride 0 on `a` or `b`
+        /// reuses one matrix; `alpha` and `beta` are `f32`. The non-blocking form is the `Scope`
+        /// method of the same name.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::InvalidArgument`] if an extent (including the whole batch) does not fit its
+        /// buffer, `stride_c` is too small, or a buffer is shared; [`Error::QueueMismatch`] if a
+        /// buffer belongs to another queue; device errors, including a device that lacks this
+        /// variant.
+        #[allow(clippy::too_many_arguments)]
+        pub fn $name(
+            queue: &Queue,
+            transa: Transpose,
+            transb: Transpose,
+            m: usize,
+            n: usize,
+            k: usize,
+            alpha: f32,
+            a: &UsmBuffer<$a>,
+            lda: usize,
+            stride_a: usize,
+            b: &UsmBuffer<$a>,
+            ldb: usize,
+            stride_b: usize,
+            beta: f32,
+            c: &mut UsmBuffer<$c>,
+            ldc: usize,
+            stride_c: usize,
+            batch: usize,
+        ) -> Result<()> {
+            if !(queue.same_as(a.queue()) && queue.same_as(b.queue()) && queue.same_as(c.queue())) {
+                return Err(Error::QueueMismatch);
+            }
+            queue.scope(|s| {
+                let (a, b, c) = (s.read(a)?, s.read(b)?, s.write(c)?);
+                s.$name(
+                    transa, transb, m, n, k, alpha, &a, lda, stride_a, &b, ldb, stride_b, beta, &c,
+                    ldc, stride_c, batch,
+                )?;
+                Ok(())
+            })
+        }
+    };
+}
+
+blocking_half_batch!(
+    /// Strided batched half-precision `gemm`, `f16` inputs and `f16` output.
+    hgemm_batch_strided,
+    half::f16,
+    half::f16
+);
+blocking_half_batch!(
+    /// Strided batched half-precision `gemm`, `f16` inputs, `f32` output and scalars.
+    hgemm_f32_batch_strided,
+    half::f16,
+    f32
+);
+blocking_half_batch!(
+    /// Strided batched half-precision `gemm`, `bf16` inputs and output, `f32` scalars.
+    bgemm_batch_strided,
+    half::bf16,
+    half::bf16
+);
+blocking_half_batch!(
+    /// Strided batched half-precision `gemm`, `bf16` inputs, `f32` output and scalars.
+    bgemm_f32_batch_strided,
+    half::bf16,
+    f32
+);
+
 // Blocking level 1 and gemv. Each is "submit on a scope, wait": the validation, the submission
 // chain and the collection of asynchronous errors are the scope's (see `crate::scope`), so there is
 // one implementation of each. Consequence worth knowing: unlike `gemm` above, which calls the

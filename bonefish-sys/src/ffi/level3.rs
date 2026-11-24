@@ -804,6 +804,102 @@ unsafe extern "C" {
         deps: *const *mut c_void,
         n_deps: i64,
     ) -> *mut c_void;
+    /// Strided batched half-precision `gemm` (half); `batch` products, operand `i` at `base + i * stride_*` elements. A and B are raw 16-bit words (`u16`); non-blocking, returns the event (null on failure, including a device that lacks the variant).
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_hgemm_batch_strided_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f32,
+        a: *const u16,
+        lda: i64,
+        stride_a: i64,
+        b: *const u16,
+        ldb: i64,
+        stride_b: i64,
+        beta: f32,
+        c: *mut u16,
+        ldc: i64,
+        stride_c: i64,
+        batch: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+    /// Strided batched half-precision `gemm` (half, f32 out); `batch` products, operand `i` at `base + i * stride_*` elements. A and B are raw 16-bit words (`u16`); non-blocking, returns the event (null on failure, including a device that lacks the variant).
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_hgemm_f32_batch_strided_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f32,
+        a: *const u16,
+        lda: i64,
+        stride_a: i64,
+        b: *const u16,
+        ldb: i64,
+        stride_b: i64,
+        beta: f32,
+        c: *mut f32,
+        ldc: i64,
+        stride_c: i64,
+        batch: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+    /// Strided batched half-precision `gemm` (bf16); `batch` products, operand `i` at `base + i * stride_*` elements. A and B are raw 16-bit words (`u16`); non-blocking, returns the event (null on failure, including a device that lacks the variant).
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_bgemm_batch_strided_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f32,
+        a: *const u16,
+        lda: i64,
+        stride_a: i64,
+        b: *const u16,
+        ldb: i64,
+        stride_b: i64,
+        beta: f32,
+        c: *mut u16,
+        ldc: i64,
+        stride_c: i64,
+        batch: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
+    /// Strided batched half-precision `gemm` (bf16, f32 out); `batch` products, operand `i` at `base + i * stride_*` elements. A and B are raw 16-bit words (`u16`); non-blocking, returns the event (null on failure, including a device that lacks the variant).
+    #[allow(clippy::too_many_arguments)]
+    pub fn bf_bgemm_f32_batch_strided_async(
+        q: *mut c_void,
+        ta: i32,
+        tb: i32,
+        m: i64,
+        n: i64,
+        k: i64,
+        alpha: f32,
+        a: *const u16,
+        lda: i64,
+        stride_a: i64,
+        b: *const u16,
+        ldb: i64,
+        stride_b: i64,
+        beta: f32,
+        c: *mut f32,
+        ldc: i64,
+        stride_c: i64,
+        batch: i64,
+        deps: *const *mut c_void,
+        n_deps: i64,
+    ) -> *mut c_void;
     /// Half-precision `gemm` (half, half, half, half): C is half, alpha/beta cross as f32 and are converted; internal accumulation unstated. A and B are raw 16-bit words (`u16`); non-blocking, returns the event (null on failure, including a device that lacks the variant).
     #[allow(clippy::too_many_arguments)]
     pub fn bf_hgemm_async(
