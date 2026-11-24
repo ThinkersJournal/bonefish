@@ -1,7 +1,7 @@
 //! BLAS through oneMKL. Every function bounds-checks its buffers in Rust before calling the
 //! device, so a safe call cannot read or write outside a [`UsmBuffer`].
 
-use crate::error::{Error, Result};
+use crate::error::{Error, Result, check};
 use crate::queue::Queue;
 use crate::scalar::{BlasElement, GemmElement};
 use crate::usm::UsmBuffer;
@@ -125,7 +125,7 @@ pub fn gemm<T: GemmElement>(
             dim("ldc", ldc)?,
         )
     };
-    Queue::status(rc)
+    check(rc)
 }
 
 /// [`gemm`] for row-major matrices: `C = alpha * op(A) * op(B) + beta * C`, blocking.
