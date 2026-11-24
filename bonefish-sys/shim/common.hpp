@@ -13,10 +13,54 @@
 #include <vector>
 
 #if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <softpub.h>
+#include <wintrust.h>
+#pragma comment(lib, "wintrust.lib")
+#endif
+
+#if defined(_WIN32)
 #define BF_API extern "C" __declspec(dllexport)
 #else
 #define BF_API extern "C" __attribute__((visibility("default")))
 #endif
+
+namespace bf {
+// bonefish#40 (Windows). First use of the SYCL runtime loads Intel's OpenCL runtime, whose `tbb12`
+// DllMain calls WinVerifyTrust on itself, which creates CRYPT32's process-wide default chain engine
+// while holding the loader lock. NVIDIA's `nvdiagclt64` thread does the same from another thread
+// and then needs the loader lock: a deadlock inside two vendor DLLs (stacks in the issue). Creating
+// the engine here, once, before any of that loads, means neither DllMain waits for it to be built.
+// Best effort: any failure is ignored and the runtime starts as it would have.
+inline void warm_trust_engine() {
+#if defined(_WIN32)
+  static std::once_flag once;
+  std::call_once(once, [] {
+    wchar_t path[MAX_PATH];
+    DWORD n = SearchPathW(nullptr, L"tbb12.dll", nullptr, MAX_PATH, path, nullptr);
+    if (n == 0 || n >= MAX_PATH) return;
+    WINTRUST_FILE_INFO file{};
+    file.cbStruct = sizeof(file);
+    file.pcwszFilePath = path;
+    WINTRUST_DATA data{};
+    data.cbStruct = sizeof(data);
+    data.dwUIChoice = WTD_UI_NONE;
+    data.fdwRevocationChecks = WTD_REVOKE_NONE;
+    data.dwUnionChoice = WTD_CHOICE_FILE;
+    data.pFile = &file;
+    data.dwStateAction = WTD_STATEACTION_VERIFY;
+    GUID action = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+    WinVerifyTrust(nullptr, &action, &data);
+    data.dwStateAction = WTD_STATEACTION_CLOSE;
+    WinVerifyTrust(nullptr, &action, &data);
+  });
+#endif
+}
+} // namespace bf
 
 namespace bf {
 // One slot per thread; defined once in shim.cpp, read through bf_last_error().
@@ -65,7 +109,15 @@ struct BfQueue {
   sycl::queue q;
   template <class Selector>
   BfQueue(const Selector &sel, std::shared_ptr<ErrStore> s, const sycl::property_list &props)
-      : store(s), q(sel, make_handler(s), props) {}
+      : store(s), q(make_queue(sel, make_handler(s), props)) {}
+
+  // bonefish#40: build the queue after `warm_trust_engine` (see there).
+  template <class Selector>
+  static sycl::queue make_queue(const Selector &sel, sycl::async_handler h,
+                                const sycl::property_list &props) {
+    warm_trust_engine();
+    return sycl::queue(sel, h, props);
+  }
 
   static sycl::async_handler make_handler(std::shared_ptr<ErrStore> s) {
     return [s](sycl::exception_list errs) {
