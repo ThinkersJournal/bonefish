@@ -5,6 +5,7 @@
 
 use bonefish_sys::*;
 use std::ffi::{CStr, c_void};
+mod common;
 
 fn err() -> String {
     unsafe { CStr::from_ptr(bf_last_error()) }
@@ -16,6 +17,7 @@ macro_rules! batch_test {
     ($name:ident, $t:ty, $f:ident) => {
         #[test]
         fn $name() {
+            common::arm();
             let q = unsafe { bf_queue_new(1) };
             assert!(!q.is_null(), "no CPU SYCL device: {}", err());
             // Column-major. Batch 0: A0 = [[1,2],[3,4]], B0 = I. Batch 1: A1 = 2 I, B1 = [[1,2],[3,4]].

@@ -3,6 +3,9 @@
 //! CPU device is what CI and the laptop have; **no GPU has run any of this** (UNVERIFIED), so what
 //! a GPU reports for its PCI address, UUID and device id is not tested here.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::{
     DeviceInfo, DeviceType, Error, Queue, SYCL_AVAILABLE, UsmBuffer, UsmKind, blas,
     find_by_pci_address,
@@ -34,6 +37,7 @@ fn cpu(devices: &[DeviceInfo]) -> &DeviceInfo {
 
 #[test]
 fn devices_are_listed_with_their_identifying_fields() {
+    common::arm();
     let Some(devices) = listed("list") else {
         return;
     };
@@ -79,6 +83,7 @@ fn devices_are_listed_with_their_identifying_fields() {
 
 #[test]
 fn a_queue_on_a_listed_device_is_that_device_and_computes() {
+    common::arm();
     let Some(devices) = listed("with_device") else {
         return;
     };
@@ -99,6 +104,7 @@ fn a_queue_on_a_listed_device_is_that_device_and_computes() {
 
 #[test]
 fn a_device_that_does_not_exist_is_an_error_never_a_default_queue() {
+    common::arm();
     let Some(devices) = listed("missing") else {
         return;
     };
@@ -117,6 +123,7 @@ fn a_device_that_does_not_exist_is_an_error_never_a_default_queue() {
 
 #[test]
 fn a_stale_description_is_refused() {
+    common::arm();
     let Some(devices) = listed("stale") else {
         return;
     };
@@ -133,6 +140,7 @@ fn a_stale_description_is_refused() {
 
 #[test]
 fn matching_by_pci_address_uses_only_what_a_device_offers() {
+    common::arm();
     let Some(devices) = listed("pci") else {
         return;
     };

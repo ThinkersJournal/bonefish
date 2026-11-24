@@ -7,6 +7,7 @@
 
 use bonefish_sys::*;
 use std::ffi::{CStr, c_void};
+mod common;
 
 fn err() -> String {
     unsafe { CStr::from_ptr(bf_last_error()) }
@@ -15,6 +16,7 @@ fn err() -> String {
 }
 
 fn cpu_queue() -> *mut c_void {
+    common::arm();
     let q = unsafe { bf_queue_new(1) };
     assert!(!q.is_null(), "no CPU SYCL device: {}", err());
     q

@@ -3,6 +3,9 @@
 //! `without_sycl_everything_fails_cleanly` covers the other build and always runs. Nothing here
 //! has run on a GPU.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use std::fmt::Debug;
 
 use bonefish::{
@@ -26,6 +29,7 @@ fn queue(test: &str) -> Option<Queue> {
 
 #[test]
 fn without_sycl_everything_fails_cleanly() {
+    common::arm();
     if SYCL_AVAILABLE {
         // Positive control: with the shim, the same call succeeds.
         assert!(Queue::new(DeviceKind::Cpu).is_ok());
@@ -41,6 +45,7 @@ fn without_sycl_everything_fails_cleanly() {
 
 #[test]
 fn device_name_is_reported() {
+    common::arm();
     let Some(q) = queue("device_name") else {
         return;
     };
@@ -49,6 +54,7 @@ fn device_name_is_reported() {
 
 #[test]
 fn usm_roundtrips_for_every_kind_and_gates_host_access() {
+    common::arm();
     let Some(q) = queue("usm_roundtrips") else {
         return;
     };
@@ -83,6 +89,7 @@ fn usm_roundtrips_for_every_kind_and_gates_host_access() {
 
 #[test]
 fn a_buffer_keeps_its_queue_alive() {
+    common::arm();
     let Some(q) = queue("buffer_keeps_queue") else {
         return;
     };
@@ -149,6 +156,7 @@ where
 
 #[test]
 fn gemm_single_and_double_match_hand_values() {
+    common::arm();
     let Some(q) = queue("gemm_hand_values") else {
         return;
     };
@@ -158,6 +166,7 @@ fn gemm_single_and_double_match_hand_values() {
 
 #[test]
 fn gemm_rejects_bad_shapes_before_touching_the_device() {
+    common::arm();
     let Some(q) = queue("gemm_rejects") else {
         return;
     };
@@ -230,6 +239,7 @@ fn gemm_rejects_bad_shapes_before_touching_the_device() {
 
 #[test]
 fn a_buffer_from_another_queue_is_rejected() {
+    common::arm();
     let Some(q1) = queue("queue_mismatch") else {
         return;
     };
@@ -264,6 +274,7 @@ fn c(re: f64, im: f64) -> Complex<f64> {
 
 #[test]
 fn dft_forward_backward_and_normalised_round_trip() {
+    common::arm();
     let Some(q) = queue("dft_round_trip") else {
         return;
     };
@@ -300,6 +311,7 @@ fn dft_forward_backward_and_normalised_round_trip() {
 
 #[test]
 fn dft_out_of_place_leaves_input_and_enforces_placement() {
+    common::arm();
     let Some(q) = queue("dft_out_of_place") else {
         return;
     };
@@ -322,6 +334,7 @@ fn dft_out_of_place_leaves_input_and_enforces_placement() {
 
 #[test]
 fn dft_rejects_short_buffers_and_empty_shapes() {
+    common::arm();
     let Some(q) = queue("dft_rejects") else {
         return;
     };

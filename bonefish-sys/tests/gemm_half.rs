@@ -7,6 +7,7 @@
 
 use bonefish_sys::*;
 use std::ffi::{CStr, c_void};
+mod common;
 
 fn err() -> String {
     unsafe { CStr::from_ptr(bf_last_error()) }
@@ -121,6 +122,7 @@ fn finish(ev: *mut c_void, name: &str) -> bool {
 }
 
 fn run16(name: &str, f: Half16, enc: fn(f32) -> u16, dec: fn(u16) -> f32) {
+    common::arm();
     let q = unsafe { bf_queue_new(1) };
     assert!(!q.is_null(), "no CPU SYCL device: {}", err());
     let (a, b) = (shared(q, &A.map(enc)), shared(q, &B.map(enc)));
@@ -160,6 +162,7 @@ fn run16(name: &str, f: Half16, enc: fn(f32) -> u16, dec: fn(u16) -> f32) {
 }
 
 fn run_f32(name: &str, f: HalfF32, enc: fn(f32) -> u16) {
+    common::arm();
     let q = unsafe { bf_queue_new(1) };
     assert!(!q.is_null(), "no CPU SYCL device: {}", err());
     let (a, b) = (shared(q, &A.map(enc)), shared(q, &B.map(enc)));

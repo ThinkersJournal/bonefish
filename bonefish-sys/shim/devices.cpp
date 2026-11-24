@@ -18,7 +18,10 @@ namespace {
 // The runtime's device list. Enumerated again on every call; the order is stable within a process
 // as far as observed, and `bf_queue_new_device` is documented to be used with an index from the
 // same process.
-std::vector<sycl::device> devices() { return sycl::device::get_devices(); }
+std::vector<sycl::device> devices() {
+  bf::warm_trust_engine();
+  return sycl::device::get_devices();
+}
 
 std::string hex_uuid(const std::array<unsigned char, 16> &u) {
   static const char digits[] = "0123456789abcdef";

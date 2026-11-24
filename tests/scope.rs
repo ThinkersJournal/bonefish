@@ -3,6 +3,9 @@
 //! `BONEFISH_REQUIRE_SYCL=1`. The compile-time guarantees (`E0502`, `E0505`, no escape) are
 //! doctests on `Queue::scope`. CPU/OpenCL device only; GPU UNVERIFIED.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use bonefish::{DeviceKind, Error, Queue, SYCL_AVAILABLE, Transpose, UsmBuffer, UsmKind};
@@ -35,6 +38,7 @@ fn two_identity(n: usize) -> Vec<f32> {
 /// intermediate results read back as inputs of the next operation. The answer is a power of two.
 #[test]
 fn a_chain_of_dependent_products_gives_the_right_answer() {
+    common::arm();
     let Some(q) = queue("chain") else { return };
     let n = 128;
     let a = buf(&q, two_identity(n));
@@ -75,6 +79,7 @@ fn a_chain_of_dependent_products_gives_the_right_answer() {
 /// The same chain, each step stating its dependency explicitly with an event.
 #[test]
 fn explicit_event_dependencies_are_accepted() {
+    common::arm();
     let Some(q) = queue("deps") else { return };
     let n = 64;
     let a = buf(&q, two_identity(n));
@@ -128,6 +133,7 @@ fn explicit_event_dependencies_are_accepted() {
 /// and would hide a missing wait.
 #[test]
 fn a_panic_inside_the_scope_still_waits_for_the_device() {
+    common::arm();
     let Some(q) = queue("panic") else { return };
     let n = 512;
     let a = buf(&q, vec![1.0; n * n]);
@@ -169,6 +175,7 @@ fn a_panic_inside_the_scope_still_waits_for_the_device() {
 
 #[test]
 fn a_buffer_from_another_queue_is_rejected_at_binding() {
+    common::arm();
     let Some(q) = queue("mismatch") else { return };
     let other = Queue::new(DeviceKind::Cpu).unwrap();
     let foreign = buf(&other, vec![0.0; 4]);
@@ -184,6 +191,7 @@ fn a_buffer_from_another_queue_is_rejected_at_binding() {
 
 #[test]
 fn an_output_that_is_also_an_input_is_rejected() {
+    common::arm();
     let Some(q) = queue("alias") else { return };
     let mut c = buf(&q, vec![1.0; 4]);
     let b = buf(&q, vec![1.0; 4]);
@@ -214,6 +222,7 @@ fn an_output_that_is_also_an_input_is_rejected() {
 
 #[test]
 fn a_short_buffer_is_rejected_before_anything_is_submitted() {
+    common::arm();
     let Some(q) = queue("bounds") else { return };
     let a = buf(&q, vec![1.0; 4]);
     let small = buf(&q, vec![1.0; 3]); // a 2 x 2 operand needs 4
@@ -269,6 +278,7 @@ fn a_short_buffer_is_rejected_before_anything_is_submitted() {
 
 #[test]
 fn without_sycl_scope_reports_unavailable_through_bindings() {
+    common::arm();
     if SYCL_AVAILABLE {
         return;
     }

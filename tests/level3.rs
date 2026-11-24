@@ -3,6 +3,9 @@
 //! Needs a device; without oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`.
 //! CPU/OpenCL device only; GPU UNVERIFIED.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::level3::{symm, syr2k, syrk, trmm, trsm};
 use bonefish::{
     DeviceKind, Diag, Error, Queue, SYCL_AVAILABLE, Side, Transpose, Uplo, UsmBuffer, UsmKind,
@@ -28,6 +31,7 @@ fn buf<T: bonefish::Element>(q: &Queue, data: &[T]) -> UsmBuffer<T> {
 
 #[test]
 fn symm_left_and_right() {
+    common::arm();
     let Some(q) = queue("symm") else { return };
     // A = [[2,1],[1,3]], B = [[1,2],[3,4]] (column-major data below).
     let b = buf(&q, &[1.0, 3.0, 2.0, 4.0]);
@@ -74,6 +78,7 @@ fn symm_left_and_right() {
 
 #[test]
 fn syrk_and_syr2k_touch_only_the_named_triangle() {
+    common::arm();
     let Some(q) = queue("syrk") else { return };
     // A = [1; 2] (2 x 1): A A^T = [[1,2],[2,4]].
     let a = buf(&q, &[1.0, 2.0]);
@@ -134,6 +139,7 @@ fn syrk_and_syr2k_touch_only_the_named_triangle() {
 
 #[test]
 fn trmm_then_trsm_round_trips_and_unit_diag_ignores_the_stored_one() {
+    common::arm();
     let Some(q) = queue("trmm_trsm") else { return };
     // A = [[2,1],[P,3]] upper.
     let a = buf(&q, &[2.0, P, 1.0, 3.0]);
@@ -210,6 +216,7 @@ fn trmm_then_trsm_round_trips_and_unit_diag_ignores_the_stored_one() {
 
 #[test]
 fn single_precision_works() {
+    common::arm();
     let Some(q) = queue("level3_f32") else { return };
     let p = P as f32;
     let a = buf(&q, &[2.0_f32, p, 1.0, 3.0]);
@@ -236,6 +243,7 @@ fn single_precision_works() {
 
 #[test]
 fn bad_extents_are_refused_in_rust_and_the_good_case_passes() {
+    common::arm();
     let Some(q) = queue("level3_errors") else {
         return;
     };

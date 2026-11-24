@@ -2,6 +2,9 @@
 //! oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`. CPU/OpenCL device only; GPU
 //! UNVERIFIED.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::{
     DeviceKind, Error, Queue, SYCL_AVAILABLE, Scalar, Transpose, UsmBuffer, UsmKind, blas,
 };
@@ -101,6 +104,7 @@ where
 
 #[test]
 fn level_1_and_gemv_double_precision() {
+    common::arm();
     let Some(q) = queue("blocking_f64") else {
         return;
     };
@@ -109,6 +113,7 @@ fn level_1_and_gemv_double_precision() {
 
 #[test]
 fn level_1_and_gemv_single_precision() {
+    common::arm();
     let Some(q) = queue("blocking_f32") else {
         return;
     };
@@ -117,6 +122,7 @@ fn level_1_and_gemv_single_precision() {
 
 #[test]
 fn refusals_come_before_the_device_is_touched() {
+    common::arm();
     let Some(q) = queue("blocking_refusals") else {
         return;
     };

@@ -3,6 +3,9 @@
 //! CPU/OpenCL device only: **no GPU has run any of this**, so whether a GPU queue supports
 //! profiling, and what its timestamps mean, is UNVERIFIED.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::{DeviceKind, Error, Queue, SYCL_AVAILABLE, Transpose, UsmBuffer, UsmKind};
 
 fn profiling_queue(test: &str) -> Option<Queue> {
@@ -42,6 +45,7 @@ fn matrix(q: &Queue, n: usize, v: f32) -> UsmBuffer<f32> {
 
 #[test]
 fn a_profiling_queue_reports_device_time_for_a_gemm() {
+    common::arm();
     watchdog("a_profiling_queue_reports_device_time_for_a_gemm", || {
         let Some(q) = profiling_queue("gemm_time") else {
             return;
@@ -82,6 +86,7 @@ fn a_profiling_queue_reports_device_time_for_a_gemm() {
 /// The same call on a queue made without profiling is an error that says so, never a zero time.
 #[test]
 fn a_queue_without_profiling_refuses_to_report_device_time() {
+    common::arm();
     watchdog(
         "a_queue_without_profiling_refuses_to_report_device_time",
         || {
@@ -117,6 +122,7 @@ fn a_queue_without_profiling_refuses_to_report_device_time() {
 /// runs each; a 1024^2 f32 `gemm` against an empty kernel on the same queue.
 #[test]
 fn the_empty_kernel_is_faster_than_a_real_gemm() {
+    common::arm();
     watchdog("the_empty_kernel_is_faster_than_a_real_gemm", || {
         let Some(q) = profiling_queue("floor") else {
             return;
@@ -173,6 +179,7 @@ fn the_empty_kernel_is_faster_than_a_real_gemm() {
 /// consistent with serial execution.
 #[test]
 fn device_timestamps_of_consecutive_operations_do_not_overlap() {
+    common::arm();
     watchdog(
         "device_timestamps_of_consecutive_operations_do_not_overlap",
         || {

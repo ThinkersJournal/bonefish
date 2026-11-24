@@ -58,6 +58,7 @@ use crate::usm::UsmBuffer;
 
 mod batched;
 mod dft;
+mod half_gemm;
 mod level1;
 mod level2;
 mod level3;

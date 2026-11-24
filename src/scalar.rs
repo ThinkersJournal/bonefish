@@ -44,6 +44,9 @@ element!(f32, 0.0);
 element!(f64, 0.0);
 // Index results of `iamax`.
 element!(i64, 0);
+// Half-precision inputs of the half `gemm` variants (`repr(transparent)` over `u16`).
+element!(half::f16, half::f16::ZERO);
+element!(half::bf16, half::bf16::ZERO);
 
 // Complex numbers over any real scalar. A blanket impl, not one per type, so generic code over
 // `T: Scalar` can name `UsmBuffer<Complex<T>>`.

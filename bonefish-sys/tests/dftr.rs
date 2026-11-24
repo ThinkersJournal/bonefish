@@ -11,27 +11,8 @@ use bonefish_sys::*;
 use std::f64::consts::PI;
 use std::ffi::{CStr, c_void};
 
-/// Run a test body on its own thread and fail it if it takes longer than `LIMIT`. One full
-/// workspace run hung every test in this file for about an hour (bonefish#40); with this a hang
-/// is a failed test with a name, not a stalled run. The stuck thread is left behind: the test
-/// process exits when the harness finishes.
-fn guarded<F: FnOnce() + Send + 'static>(body: F) {
-    guarded_for(std::time::Duration::from_secs(120), body);
-}
-
-/// `guarded` with the limit injected, so the timeout path itself can be tested.
-fn guarded_for<F: FnOnce() + Send + 'static>(limit: std::time::Duration, body: F) {
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
-        let _ = tx.send(r);
-    });
-    match rx.recv_timeout(limit) {
-        Ok(Ok(())) => {}
-        Ok(Err(panic)) => std::panic::resume_unwind(panic),
-        Err(_) => panic!("test body did not finish within {limit:?} (see bonefish#40)"),
-    }
-}
+mod common;
+use common::{guarded, guarded_with};
 
 /// The guard fires on a body that overruns its limit, and returns long before the body would
 /// have (the body sleeps 10 s, so without the guard this test would take 10 s, not under 3 s),
@@ -42,7 +23,7 @@ fn guard_fires_on_overrun_and_not_otherwise() {
     use std::time::{Duration, Instant};
     let t0 = Instant::now();
     let r = std::panic::catch_unwind(|| {
-        guarded_for(Duration::from_millis(200), || {
+        guarded_with(Duration::from_millis(200), false, || {
             std::thread::sleep(Duration::from_secs(10))
         })
     });
@@ -55,9 +36,10 @@ fn guard_fires_on_overrun_and_not_otherwise() {
     assert!(msg.contains("bonefish#40"), "{msg}");
     assert!(took < Duration::from_secs(3), "guard took {took:?}");
     // Control 1: a quick body passes under the same limit.
-    guarded_for(Duration::from_millis(200), || {});
+    guarded_with(Duration::from_millis(200), false, || {});
     // Control 2: a body's own panic comes through as itself, not as a timeout.
-    let r = std::panic::catch_unwind(|| guarded_for(Duration::from_secs(5), || panic!("boom")));
+    let r =
+        std::panic::catch_unwind(|| guarded_with(Duration::from_secs(5), false, || panic!("boom")));
     let msg = r
         .expect_err("must panic")
         .downcast::<&str>()
@@ -469,4 +451,14 @@ fn three_dimensional_forward_matches_the_naive_half_spectrum() {
             unsafe { bf_dftr_free(h) };
         }
     });
+}
+
+#[test]
+fn state_dump_names_this_process_and_threads() {
+    let s = common::process_state();
+    assert!(s.contains(&format!("pid {}", std::process::id())), "{s}");
+    assert!(
+        s.contains(if cfg!(windows) { "tid " } else { "threads:" }),
+        "{s}"
+    );
 }

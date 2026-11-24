@@ -4,6 +4,7 @@
 
 use bonefish_sys::*;
 use std::ffi::{CStr, c_void};
+mod common;
 
 struct Usm {
     q: *mut c_void,
@@ -33,6 +34,7 @@ fn err() -> String {
 }
 
 fn cpu_queue() -> *mut c_void {
+    common::arm();
     let q = unsafe { bf_queue_new(1) };
     assert!(!q.is_null(), "no CPU SYCL device: {}", err());
     q

@@ -17,6 +17,7 @@
 #![cfg(bonefish_sycl)]
 
 use bonefish_sys::*;
+mod common;
 
 fn run(threads: usize, iterations: usize) {
     let handles: Vec<_> = (0..threads)
@@ -25,6 +26,7 @@ fn run(threads: usize, iterations: usize) {
                 for _ in 0..iterations {
                     // SAFETY: plain calls on a queue this thread owns; each handle is freed once.
                     unsafe {
+                        common::arm();
                         let q = bf_queue_new(1);
                         assert!(!q.is_null(), "no CPU SYCL device");
                         let e = bf_test_async_failure(q);

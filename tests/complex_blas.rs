@@ -2,6 +2,9 @@
 //! Needs a device; without oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`. CPU/OpenCL
 //! device only; nothing here has run on a GPU.
 
+#[path = "../bonefish-sys/tests/common/mod.rs"]
+mod common;
+
 use bonefish::{
     Complex, DeviceKind, Error, Queue, SYCL_AVAILABLE, Transpose, UsmBuffer, UsmKind, blas,
 };
@@ -77,6 +80,7 @@ fn strided(v: &[C], n: usize, inc: usize) -> Vec<C> {
 
 #[test]
 fn axpy_scal_copy_swap_match_the_reference_with_strides() {
+    common::arm();
     let Some(q) = queue("l1_basic") else { return };
     let n = 5;
     let (incx, incy) = (2, 1);
@@ -135,6 +139,7 @@ fn axpy_scal_copy_swap_match_the_reference_with_strides() {
 /// on data with imaginary parts, or a missing conjugation would go unnoticed.
 #[test]
 fn dot_is_unconjugated_and_dotc_conjugates_the_first_vector() {
+    common::arm();
     let Some(q) = queue("dots") else { return };
     let n = 6;
     let (x, y) = (values(n, 3), values(n, 4));
@@ -168,6 +173,7 @@ fn dot_is_unconjugated_and_dotc_conjugates_the_first_vector() {
 /// result type is wrong). `asum` is `sum(|re| + |im|)`, not `sum |z|`, and the two differ here.
 #[test]
 fn nrm2_and_asum_are_real_and_asum_is_the_sum_of_parts() {
+    common::arm();
     let Some(q) = queue("norms") else { return };
     let n = 7;
     let x = values(n, 5);
@@ -193,6 +199,7 @@ fn nrm2_and_asum_are_real_and_asum_is_the_sum_of_parts() {
 /// 3.1); the answer says which rule oneMKL follows. Zero-based, first index on ties.
 #[test]
 fn iamax_follows_the_sum_of_parts_rule() {
+    common::arm();
     let Some(q) = queue("iamax") else { return };
     let x = [(3.1, 0.0), (2.0, 2.0), (0.5, 0.5)];
     let xb = buf(&q, &x);
@@ -224,6 +231,7 @@ fn iamax_follows_the_sum_of_parts_rule() {
 
 #[test]
 fn gemv_matches_the_reference_for_every_op() {
+    common::arm();
     let Some(q) = queue("gemv") else { return };
     let (m, n) = (5, 4);
     let (alpha, beta) = ((0.5, -2.0), (1.0, 1.0));
@@ -268,6 +276,7 @@ fn gemv_matches_the_reference_for_every_op() {
 
 #[test]
 fn single_precision_works_within_float_tolerance() {
+    common::arm();
     let Some(q) = queue("f32") else { return };
     let n = 6;
     let (x, y) = (values(n, 9), values(n, 10));
@@ -292,6 +301,7 @@ fn single_precision_works_within_float_tolerance() {
 /// straight after it (the oneMKL call that ignores an in-order queue, ROADMAP R3c), then `nrm2`.
 #[test]
 fn scoped_complex_calls_chain_correctly() {
+    common::arm();
     let Some(q) = queue("scoped") else { return };
     let n = 6;
     let alpha = (2.0, 1.0);
@@ -347,6 +357,7 @@ fn scoped_complex_calls_chain_correctly() {
 
 #[test]
 fn refusals_are_the_same_as_for_real_data() {
+    common::arm();
     let Some(q) = queue("refusals") else { return };
     let other = Queue::new(DeviceKind::Cpu).unwrap();
     let x = buf(&q, &values(4, 13));

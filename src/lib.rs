@@ -45,6 +45,8 @@ pub use blas::Transpose;
 pub use device::{DeviceInfo, DeviceType, find_by_pci_address, find_by_uuid};
 pub use dft::{Dft, Placement};
 pub use error::{Error, Result};
+/// The `half` crate, re-exported: the `f16`/`bf16` types the half `gemm` methods take.
+pub use half;
 pub use level2::{Diag, Level2, Uplo};
 pub use level3::{Hermitian3, Level3, Side};
 pub use queue::{DeviceKind, Queue};
