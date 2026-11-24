@@ -13,5 +13,5 @@ half = "2.7.1"
 bonefish-sys = { version = "0.0.43", path = "bonefish-sys" }
 
 [workspace]
-members = [".", "bonefish-sys", "bonefish-sycl-emit", "bonefish-sycl-parse"]
-default-members = [".", "bonefish-sys", "bonefish-sycl-emit", "bonefish-sycl-parse"]
+members = [".", "bonefish-sys", "bonefish-sycl-emit", "bonefish-sycl-parse", "bonefish-bench"]
+default-members = [".", "bonefish-sys", "bonefish-sycl-emit", "bonefish-sycl-parse", "bonefish-bench"]

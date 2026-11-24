@@ -20,6 +20,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "bonefish-bench"
+version = "0.0.43"
+dependencies = [
+ "bonefish",
+ "half",
+]
+
+[[package]]
 name = "bonefish-sycl-emit"
 version = "0.0.43"
 dependencies = [
