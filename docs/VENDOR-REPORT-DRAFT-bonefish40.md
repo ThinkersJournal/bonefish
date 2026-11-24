@@ -1,7 +1,6 @@
 # DRAFT, NOT SENT: loader-lock deadlock between Intel OpenCL's `tbb12` DllMain and NVIDIA's `nvdiagclt64` (Windows)
 
-Status: draft for the portfolio PM and CireSnave. Nothing has been posted to Intel or NVIDIA; it needs
-CireSnave's go first. Evidence is from bonefish#40 on one laptop; no other machine has run it.
+Status: internal draft, not sent. Strip this header before sending. Evidence is from one laptop; no other machine has run it.
 
 ## Summary
 
@@ -57,7 +56,7 @@ Thread B (unnamed, started by the NVIDIA stack):
     CRYPT32!CertGetCertificateChain <- wintrust!WinVerifyTrust
     nvdiagclt64!diagcltGetCallbacks+...
 
-Full dumps are kept by the lane (`C:/cb/bonefish40-level3-stacks.txt`, `...-mutex-stacks.txt`).
+Full dumps are kept by kept locally (`C:/cb/bonefish40-level3-stacks.txt`, `...-mutex-stacks.txt`).
 
 ## Ask
 
