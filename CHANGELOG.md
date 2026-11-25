@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.44 (placeholder; number allocated by pm-assist at gate)
+## 0.0.44 (allocated by pm-assist 2026-11-25)
 
 - `bonefish` (R5c): `blas::gemm_row_major` (row-major `gemm`, the transposed column-major call with operands and `m`/`n` swapped; bounds-check messages name the operand as `gemm` sees it).
 - `bonefish`, `bonefish-sys` (R5c, R3): strided batched half-precision `gemm`, the four oneMKL `gemm_batch` variants: `Scope::{hgemm,hgemm_f32,bgemm,bgemm_f32}_batch_strided` and blocking `blas::` forms; shim `bf_{h,hf32,b,bf32}gemm_batch_strided_async` (alpha/beta cross as f32). Extents of the whole batch, `stride_c` and output aliasing are checked in Rust. Tested on the SYCL CPU (OpenCL) device only: transposed A, stride-0 shared B, padded strides and `ldc`, alpha and beta, f32 accumulation (3000-term dot). GPU UNVERIFIED. oneMKL has no other half/bf16 level 3 (`syrk`, `trsm` and the rest have no half declaration in `usm_decls.hpp`).
