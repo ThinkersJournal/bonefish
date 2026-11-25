@@ -52,6 +52,10 @@ const MKL_FUNCS: &[&str] = &[
     "bf_hgemm_f32_async",
     "bf_bgemm_async",
     "bf_bgemm_f32_async",
+    "bf_hgemm_batch_strided_async",
+    "bf_hgemm_f32_batch_strided_async",
+    "bf_bgemm_batch_strided_async",
+    "bf_bgemm_f32_batch_strided_async",
     "bf_saxpy_async",
     "bf_sscal_async",
     "bf_scopy_async",
@@ -660,6 +664,45 @@ mod counter {
             half_lock!(bf_hgemm_f32_async);
             half_lock!(bf_bgemm_async);
             half_lock!(bf_bgemm_f32_async);
+            // The strided batched half variants: same contract, one lock entry each.
+            macro_rules! half_batch_lock {
+                ($f:ident) => {{
+                    let (d, e) = moved(|| unsafe {
+                        $f(
+                            q,
+                            0,
+                            0,
+                            2,
+                            2,
+                            2,
+                            1.0,
+                            m32.p.cast(),
+                            2,
+                            0,
+                            m32.p.cast(),
+                            2,
+                            0,
+                            0.0,
+                            c32.p.cast(),
+                            2,
+                            0,
+                            1,
+                            std::ptr::null(),
+                            0,
+                        )
+                    });
+                    seen.push(stringify!($f));
+                    assert_eq!(d, 1, "{} moved the counter by {d}, not 1", stringify!($f));
+                    if !e.is_null() {
+                        assert_eq!(unsafe { bf_event_wait(e) }, 0);
+                        unsafe { bf_event_free(e) };
+                    }
+                }};
+            }
+            half_batch_lock!(bf_hgemm_batch_strided_async);
+            half_batch_lock!(bf_hgemm_f32_batch_strided_async);
+            half_batch_lock!(bf_bgemm_batch_strided_async);
+            half_batch_lock!(bf_bgemm_f32_batch_strided_async);
         }
 
         async_calls!(

@@ -128,6 +128,40 @@ pub fn gemm<T: GemmElement>(
     Queue::status(rc)
 }
 
+/// [`gemm`] for row-major matrices: `C = alpha * op(A) * op(B) + beta * C`, blocking.
+///
+/// `op(A)` is `m x k`, `op(B)` is `k x n`, `C` is `m x n`, each stored row by row with a leading
+/// dimension (the distance between rows) of at least its column count. A row-major matrix is the
+/// column-major transpose of itself, so this is `C^T = op(B)^T * op(A)^T` run through [`gemm`]
+/// with the operands and `m`/`n` swapped. Bounds checks therefore name the operand as seen by
+/// that call: a message about `"A"` is about your `b`, and the reverse.
+///
+/// # Errors
+///
+/// As [`gemm`]: [`Error::QueueMismatch`], [`Error::InvalidArgument`] (a leading dimension below
+/// its column count, or a buffer too short), [`Error::Sycl`] / [`Error::Mkl`].
+#[allow(clippy::too_many_arguments)]
+pub fn gemm_row_major<T: GemmElement>(
+    queue: &Queue,
+    transa: Transpose,
+    transb: Transpose,
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: T,
+    a: &UsmBuffer<T>,
+    lda: usize,
+    b: &UsmBuffer<T>,
+    ldb: usize,
+    beta: T,
+    c: &mut UsmBuffer<T>,
+    ldc: usize,
+) -> Result<()> {
+    gemm(
+        queue, transb, transa, n, m, k, alpha, b, ldb, a, lda, beta, c, ldc,
+    )
+}
+
 /// Strided batched `c_i = alpha * op(a_i) * op(b_i) + beta * c_i` for `i < batch`, column-major,
 /// blocking; operand `i` is at `base + i * stride` elements (stride 0 on `a` or `b` reuses one
 /// matrix). `stride_c` must be at least one `c` matrix. `f32` and `f64`.
@@ -234,6 +268,82 @@ blocking_half!(
 blocking_half!(
     /// Half-precision `gemm`, `bf16` inputs, `f32` output and scalars.
     bgemm_f32,
+    half::bf16,
+    f32
+);
+
+macro_rules! blocking_half_batch {
+    ($(#[$doc:meta])* $name:ident, $a:ty, $c:ty) => {
+        $(#[$doc])*
+        ///
+        /// Blocking, column-major strided batched `c_i = alpha * op(a_i) * op(b_i) + beta * c_i`
+        /// for `i < batch`; operand `i` at `base + i * stride` elements, stride 0 on `a` or `b`
+        /// reuses one matrix; `alpha` and `beta` are `f32`. The non-blocking form is the `Scope`
+        /// method of the same name.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::InvalidArgument`] if an extent (including the whole batch) does not fit its
+        /// buffer, `stride_c` is too small, or a buffer is shared; [`Error::QueueMismatch`] if a
+        /// buffer belongs to another queue; device errors, including a device that lacks this
+        /// variant.
+        #[allow(clippy::too_many_arguments)]
+        pub fn $name(
+            queue: &Queue,
+            transa: Transpose,
+            transb: Transpose,
+            m: usize,
+            n: usize,
+            k: usize,
+            alpha: f32,
+            a: &UsmBuffer<$a>,
+            lda: usize,
+            stride_a: usize,
+            b: &UsmBuffer<$a>,
+            ldb: usize,
+            stride_b: usize,
+            beta: f32,
+            c: &mut UsmBuffer<$c>,
+            ldc: usize,
+            stride_c: usize,
+            batch: usize,
+        ) -> Result<()> {
+            if !(queue.same_as(a.queue()) && queue.same_as(b.queue()) && queue.same_as(c.queue())) {
+                return Err(Error::QueueMismatch);
+            }
+            queue.scope(|s| {
+                let (a, b, c) = (s.read(a)?, s.read(b)?, s.write(c)?);
+                s.$name(
+                    transa, transb, m, n, k, alpha, &a, lda, stride_a, &b, ldb, stride_b, beta, &c,
+                    ldc, stride_c, batch,
+                )?;
+                Ok(())
+            })
+        }
+    };
+}
+
+blocking_half_batch!(
+    /// Strided batched half-precision `gemm`, `f16` inputs and `f16` output.
+    hgemm_batch_strided,
+    half::f16,
+    half::f16
+);
+blocking_half_batch!(
+    /// Strided batched half-precision `gemm`, `f16` inputs, `f32` output and scalars.
+    hgemm_f32_batch_strided,
+    half::f16,
+    f32
+);
+blocking_half_batch!(
+    /// Strided batched half-precision `gemm`, `bf16` inputs and output, `f32` scalars.
+    bgemm_batch_strided,
+    half::bf16,
+    half::bf16
+);
+blocking_half_batch!(
+    /// Strided batched half-precision `gemm`, `bf16` inputs, `f32` output and scalars.
+    bgemm_f32_batch_strided,
     half::bf16,
     f32
 );

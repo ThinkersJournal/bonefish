@@ -41,6 +41,27 @@ void *hgemm_async(void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t
   });
   return out;
 }
+
+// Strided batched variants of the above (oneMKL declares the same four type combinations for
+// `gemm_batch`): `batch` products, operand `i` at `base + i * stride_*` elements.
+template <class TA, class TC, class TS>
+void *hgemm_batch_strided_async(void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t k,
+                                float alpha, const uint16_t *a, int64_t lda, int64_t stride_a,
+                                const uint16_t *b, int64_t ldb, int64_t stride_b, float beta,
+                                void *c, int64_t ldc, int64_t stride_c, int64_t batch,
+                                void *const *deps, int64_t n_deps) {
+  void *out = nullptr;
+  bf::guard_mkl([&] {
+    out = bf::new_event(
+        blas::gemm_batch(bf::Q(q), T(ta), T(tb), m, n, k, static_cast<TS>(alpha),
+                         reinterpret_cast<const TA *>(a), lda, stride_a,
+                         reinterpret_cast<const TA *>(b), ldb, stride_b, static_cast<TS>(beta),
+                         reinterpret_cast<TC *>(c), ldc, stride_c, batch,
+                         bf::deps_chained(*bf::Store(q), deps, n_deps)),
+        bf::Store(q));
+  });
+  return out;
+}
 } // namespace
 
 #define BF_HGEMM(name, TA, TC, TS, CPTR)                                                        \
@@ -56,3 +77,10 @@ BF_HGEMM(bf_hgemm_async, sycl::half, sycl::half, sycl::half, uint16_t)
 BF_HGEMM(bf_hgemm_f32_async, sycl::half, float, float, float)
 BF_HGEMM(bf_bgemm_async, oneapi::mkl::bfloat16, oneapi::mkl::bfloat16, float, uint16_t)
 BF_HGEMM(bf_bgemm_f32_async, oneapi::mkl::bfloat16, float, float, float)
+
+#define BF_HGEMM_BATCH(name, TA, TC, TS, CPTR)                                                    BF_API void *name(void *q, int32_t ta, int32_t tb, int64_t m, int64_t n, int64_t k,                              float alpha, const uint16_t *a, int64_t lda, int64_t stride_a,                                 const uint16_t *b, int64_t ldb, int64_t stride_b, float beta, CPTR *c,                         int64_t ldc, int64_t stride_c, int64_t batch, void *const *deps,                               int64_t n_deps) {                                                              return hgemm_batch_strided_async<TA, TC, TS>(q, ta, tb, m, n, k, alpha, a, lda, stride_a,                                                  b, ldb, stride_b, beta, c, ldc, stride_c,                                                      batch, deps, n_deps);                           }
+
+BF_HGEMM_BATCH(bf_hgemm_batch_strided_async, sycl::half, sycl::half, sycl::half, uint16_t)
+BF_HGEMM_BATCH(bf_hgemm_f32_batch_strided_async, sycl::half, float, float, float)
+BF_HGEMM_BATCH(bf_bgemm_batch_strided_async, oneapi::mkl::bfloat16, oneapi::mkl::bfloat16, float, uint16_t)
+BF_HGEMM_BATCH(bf_bgemm_f32_batch_strided_async, oneapi::mkl::bfloat16, float, float, float)

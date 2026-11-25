@@ -356,3 +356,103 @@ fn dft_rejects_short_buffers_and_empty_shapes() {
     let mut ok = UsmBuffer::<Complex<f64>>::zeroed(&q, UsmKind::Shared, 8).unwrap();
     plan.forward_in_place(&mut ok).unwrap();
 }
+
+#[test]
+fn gemm_row_major_matches_hand_computed_products() {
+    common::arm();
+    let Some(q) = queue("gemm_row_major") else {
+        return;
+    };
+    // Row-major A = [1 2 3; 4 5 6] (2 x 3), B = [1 0; 0 1; 1 1] (3 x 2).
+    // A*B = [1+3, 2+3; 4+6, 5+6] = [4 5; 10 11], row-major 4 5 10 11.
+    let a =
+        UsmBuffer::from_slice(&q, UsmKind::Shared, &[1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+    let b =
+        UsmBuffer::from_slice(&q, UsmKind::Shared, &[1.0_f64, 0.0, 0.0, 1.0, 1.0, 1.0]).unwrap();
+    let mut c = UsmBuffer::from_slice(&q, UsmKind::Shared, &[0.0_f64; 4]).unwrap();
+    blas::gemm_row_major(
+        &q,
+        Transpose::No,
+        Transpose::No,
+        2,
+        2,
+        3,
+        1.0,
+        &a,
+        3,
+        &b,
+        2,
+        0.0,
+        &mut c,
+        2,
+    )
+    .unwrap();
+    assert_eq!(c.to_vec().unwrap(), [4.0, 5.0, 10.0, 11.0]);
+
+    // Transposed A: A^T * A is 3 x 3 = [17 22 27; 22 29 36; 27 36 45], row-major. Distinct
+    // from the product above, and asymmetric operands would expose a swapped transpose.
+    let mut c3 = UsmBuffer::from_slice(&q, UsmKind::Shared, &[0.0_f64; 9]).unwrap();
+    blas::gemm_row_major(
+        &q,
+        Transpose::Trans,
+        Transpose::No,
+        3,
+        3,
+        2,
+        1.0,
+        &a,
+        3,
+        &a,
+        3,
+        0.0,
+        &mut c3,
+        3,
+    )
+    .unwrap();
+    assert_eq!(
+        c3.to_vec().unwrap(),
+        [17.0, 22.0, 27.0, 22.0, 29.0, 36.0, 27.0, 36.0, 45.0]
+    );
+
+    // Non-square result with a padded leading dimension on C (ldc 3 for 2 columns).
+    let mut cp = UsmBuffer::from_slice(&q, UsmKind::Shared, &[-1.0_f64; 6]).unwrap();
+    blas::gemm_row_major(
+        &q,
+        Transpose::No,
+        Transpose::No,
+        2,
+        2,
+        3,
+        1.0,
+        &a,
+        3,
+        &b,
+        2,
+        0.0,
+        &mut cp,
+        3,
+    )
+    .unwrap();
+    assert_eq!(cp.to_vec().unwrap(), [4.0, 5.0, -1.0, 10.0, 11.0, -1.0]);
+
+    // ld below the column count is rejected (positive control: ld = 3 above is accepted).
+    assert!(matches!(
+        blas::gemm_row_major(
+            &q,
+            Transpose::No,
+            Transpose::No,
+            2,
+            2,
+            3,
+            1.0,
+            &a,
+            2,
+            &b,
+            2,
+            0.0,
+            &mut c,
+            2,
+        ),
+        Err(Error::InvalidArgument(_))
+    ));
+}
