@@ -218,6 +218,15 @@ pub fn parse_args(args: &[String]) -> Res<Parsed> {
 ///
 /// Usage errors, no device, no row ran, or a row failed verification.
 pub fn cli(args: &[String]) -> Res<()> {
+    // Help and version are successes: the text goes to stdout and the exit status is 0.
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("{USAGE}");
+        return Ok(());
+    }
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("bonefish-bench {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     let p = parse_args(args)?;
     if !bonefish::SYCL_AVAILABLE {
         return Err("built without oneAPI (SYCL_AVAILABLE is false): nothing can be timed".into());

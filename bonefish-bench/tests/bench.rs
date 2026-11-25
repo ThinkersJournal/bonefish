@@ -5,7 +5,6 @@
 //! `BONEFISH_REQUIRE_SYCL=1`. A variant the device refuses is reported NOT RUN and fails under
 //! `BONEFISH_REQUIRE_HALF=1`. CPU (OpenCL) device only; GPU UNVERIFIED.
 
-#[path = "../../bonefish-sys/tests/common/mod.rs"]
 mod common;
 
 use bonefish::SYCL_AVAILABLE;
@@ -253,5 +252,13 @@ fn the_command_line_parses_and_rejects() {
         &["--preset", "huge"],
     ] {
         assert!(parse_args(&a(bad)).is_err(), "{bad:?} was accepted");
+    }
+}
+
+#[test]
+fn help_and_version_succeed_without_a_device() {
+    // CLI basics (OPS-011): both are successes, and neither needs a SYCL device.
+    for flag in ["--help", "-h", "--version", "-V"] {
+        bonefish_bench::cli(&[flag.to_string()]).unwrap_or_else(|e| panic!("{flag} failed: {e}"));
     }
 }
