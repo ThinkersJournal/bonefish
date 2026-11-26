@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // Non-blocking BLAS level 1 and gemv (single and double): the same operations as blas1.cpp, but
 // each returns the sycl::event (null on failure, see bf_last_error) instead of waiting. Only the
 // submission runs under the oneMKL lock. The caller keeps every operand alive, and untouched by

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! R2 remainder, complex level 3: `symm`, `hemm`, `syrk`, `herk`, `syr2k`, `her2k`, `trmm`, `trsm`
 //! (non-blocking) through the shim on the CPU (OpenCL) device, single (`c`) and double (`z`)
 //! precision from one macro, against hand-computed 2 x 2 results. The triangle a routine must not

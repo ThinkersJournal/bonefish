@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // Shared by the shim translation units: export macro, queue handle cast, error capture.
 #pragma once
 #include <sycl/sycl.hpp>

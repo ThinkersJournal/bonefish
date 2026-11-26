@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! SYCL/DPC++ backend for the neutral `unpopped` kernel generator.
 //!
 //! [`Sycl`] lowers a [`KernelPlan`] to SYCL C++ source: one `extern "C"` host function that

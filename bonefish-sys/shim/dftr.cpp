@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // Real-to-complex and complex-to-real DFT over oneapi::mkl::dft (R3b). Out-of-place only: the
 // forward transform reads `prod(lengths)` reals and writes the conjugate-even half spectrum, whose
 // LAST dimension has `lengths[d-1] / 2 + 1` complex entries (the rest of the layout is the plain

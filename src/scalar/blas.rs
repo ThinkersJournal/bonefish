@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! `BlasElement`: the element types level 1 and `gemv` accept (split out of `scalar.rs`, R15).
 
 use std::ffi::c_void;

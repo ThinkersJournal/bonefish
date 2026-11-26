@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! SYCL front end: hand-written kernels, the refusals, and a round trip through the emitter.
 //! Toolchain-free: nothing here compiles SYCL.
 

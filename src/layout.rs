@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Shapes shared by the BLAS layers: how a matrix operand is used, and the extent checks every
 //! safe call makes before it reaches the device. This sits below `blas` and `scope` so neither has
 //! to import the other (ROADMAP R14, MOD-002).

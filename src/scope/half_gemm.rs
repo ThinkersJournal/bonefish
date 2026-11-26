@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Half-precision `gemm` on [`Scope`] (non-blocking): `half::f16` and `half::bf16` inputs, with the
 //! oneMKL variant named in the method. Extents and output aliasing are checked in Rust.
 //!

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Stand-ins for: half/bf16 `gemm` and strided batched half/bf16 `gemm` (build without the shim). Split out
 //! of `level3.rs` (R15, MOD-005): the same signatures as `ffi/level3.rs`, each returns a null event.
 

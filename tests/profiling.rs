@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Device-time profiling and the launch floor (R5b, `docs/FUEL-INTEL-GPU-DESIGN.md`). Needs a
 //! device; without oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`. Measured on the
 //! CPU/OpenCL device only: **no GPU has run any of this**, so whether a GPU queue supports

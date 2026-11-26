@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Strided batched `gemm` through the safe API (blocking and on `Scope`), hand values over a batch
 //! of 2, plus the extent and stride errors. Needs a device; without oneAPI the tests skip loudly
 //! unless `BONEFISH_REQUIRE_SYCL=1`. CPU/OpenCL device only; GPU UNVERIFIED.

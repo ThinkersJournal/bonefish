@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The non-blocking level 2 operations on [`Scope`] beyond `gemv`: `rotm`, `symv`, `syr`, `syr2`,
 //! `trmv`, `trsv`, `gbmv`. Same contract as the other scope operations: extents are checked in
 //! Rust, and a buffer an operation writes is distinct from the ones it reads.

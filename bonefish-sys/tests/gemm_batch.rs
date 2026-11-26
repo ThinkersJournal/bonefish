@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Strided batched `gemm` (non-blocking) through the shim on the CPU (OpenCL) device, single and
 //! double precision, against hand-computed 2 x 2 results over a batch of 2. Compiled out without
 //! oneAPI; the oneAPI CI job sets `BONEFISH_REQUIRE_SYCL=1` so that cannot hide a skipped run.

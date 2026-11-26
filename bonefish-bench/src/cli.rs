@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Command line and JSON output.
 
 use std::fmt::Write as _;

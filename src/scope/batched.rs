@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Strided batched `gemm` on [`Scope`] (non-blocking) for `f32` and `f64`: `batch` independent
 //! products, operand `i` at `base + i * stride` elements. Extents, strides and output aliasing are
 //! checked in Rust. The blocking form is [`crate::blas::gemm_batch_strided`].

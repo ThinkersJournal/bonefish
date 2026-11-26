@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Stand-ins with the same signatures, by operation family (R15). Only compiled without oneAPI.
 
 mod base;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // BLAS level 1 and gemv over oneapi::mkl::blas::column_major, single and double precision.
 // Every call is blocking. Pointers are USM reachable from the queue; scalar results (dot, nrm2,
 // asum, iamax) are written through a USM result pointer, as oneMKL requires.

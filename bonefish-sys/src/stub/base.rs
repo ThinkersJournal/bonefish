@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Stand-ins for: queues, memory, events, devices, error text and test hooks (build without the shim). Split out of `lib.rs` (R15).
 
 use std::ffi::{c_char, c_void};

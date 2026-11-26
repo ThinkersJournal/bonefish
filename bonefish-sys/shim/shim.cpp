@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // extern "C" shim over oneapi::mkl (SYCL). Opaque handles only; no C++ type crosses the boundary.
 #include "common.hpp"
 

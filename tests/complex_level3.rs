@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Complex level 3 through the safe API (R3): `trsm`, `hemm`, `herk`, `her2k` on `Complex<f64>`.
 //! Hand-computed values (derivations in comments); the triangle that must not be touched holds a poison value.
 //! Needs a device; without oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`.

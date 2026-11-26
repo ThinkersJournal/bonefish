@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The gate for the proposed `sycl:` vocabulary (KISS-CLASSIFY-6.8-0014): evaluates each token's
 //! derivability witness against the architecture table that ships with the installed DPC++
 //! compiler, and against the compiler itself.

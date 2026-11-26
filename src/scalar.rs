@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The element and scalar types the safe layer accepts. Both traits are sealed: each impl is
 //! backed by a matching shim function, so an outside type could not be dispatched.
 

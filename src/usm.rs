@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Unified shared memory owned by a queue.
 
 use std::marker::PhantomData;

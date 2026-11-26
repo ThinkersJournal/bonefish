@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The blocking level 1 and `gemv` functions in `bonefish::blas` (R3 step). Needs a device; without
 //! oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`. CPU/OpenCL device only; GPU
 //! UNVERIFIED.

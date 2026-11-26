@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! BLAS through oneMKL. Every function bounds-checks its buffers in Rust before calling the
 //! device, so a safe call cannot read or write outside a [`UsmBuffer`].
 

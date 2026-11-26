@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Bonefish: a safe Rust interface to Intel oneAPI / oneMKL on SYCL devices.
 //!
 //! - [`Queue`]: a SYCL queue on one device ([`DeviceKind`]).

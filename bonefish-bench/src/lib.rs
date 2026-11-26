@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Benchmark harness for Bonefish `gemm` (R5d, `docs/FUEL-INTEL-GPU-DESIGN.md`).
 //!
 //! Times row-major `y[M,N] = x[M,K] @ W[K,N]` (alpha 1, beta 0, no transposes; the layout Fuel

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // Complex BLAS over oneapi::mkl::blas::column_major (single = `c`, double = `z`).
 //
 // Complex data crosses the C boundary as interleaved real/imaginary floats (or doubles), the

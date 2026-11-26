@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // Standalone reproducer, finding 3 of docs/INTEL-REPORT-DRAFT.md: oneMKL SYCL DFT (complex to
 // complex, CPU device) crashes with SIGFPE on some Intel Xeon CPUs with default instruction-set
 // dispatch. Plain C++ with SYCL and oneMKL only; one thread; one configuration per process (a crash kills

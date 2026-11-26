@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Foreign declarations of the shim, by operation family (R15). Only compiled with oneAPI.
 
 mod base;

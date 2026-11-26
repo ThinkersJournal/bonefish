@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Non-blocking `gemm` on [`Scope`]: [`Scope::gemm`] and [`Scope::gemm_after`] (moved out of
 //! `scope.rs`, R15). The other level 3 operations are in `level3.rs`, half precision in
 //! `half_gemm.rs`, strided batches in `batched.rs`.

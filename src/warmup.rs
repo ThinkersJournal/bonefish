@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! One-time, per-process warm-up of the oneMKL BLAS routines (ROADMAP R12).
 //!
 //! On Windows (oneAPI 2026.1, CPU device) running *different* oneMKL routines for the first time on

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! `bonefish-bench`: see the library docs. Prints one JSON object per line on stdout; notes and
 //! errors go to stderr.
 

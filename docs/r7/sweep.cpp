@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // ROADMAP R7: accuracy of float unary math under the compiler's default floating-point model versus
 // -ffp-model=precise, for two spellings of each function: the libm name (expf) and sycl::exp.
 // Plain C++ with SYCL only. Build once per flag set (see run.sh) and compare the tables.

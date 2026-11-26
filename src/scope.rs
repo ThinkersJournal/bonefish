@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Non-blocking operations inside a scope (R3c step 2; design: `docs/ASYNC-DESIGN.md`).
 //!
 //! ```text

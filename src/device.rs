@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Device enumeration and selection (R5a, `docs/FUEL-INTEL-GPU-DESIGN.md`).
 //!
 //! [`Queue::devices`] lists every SYCL device with what it reports about itself, and a queue can

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The non-blocking shim layer: in-order queues, `*_async` calls returning events, waiting, and
 //! asynchronous errors (docs/ASYNC-DESIGN.md sections 3.4, 4 and 5). CPU/OpenCL device only; GPU
 //! behaviour is UNVERIFIED. Needs oneAPI at build time, so the file is empty without it.

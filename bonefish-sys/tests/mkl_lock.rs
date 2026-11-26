@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Every shim function that calls oneMKL must go through the process-wide oneMKL lock.
 //!
 //! Why this is tested: the shipped oneMKL is not host-thread-safe (see `ROADMAP.md` R3b and

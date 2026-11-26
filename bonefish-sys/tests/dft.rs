@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Complex-to-complex DFT through the shim on the CPU (OpenCL) device. Compiled out without
 //! oneAPI; the oneAPI CI job sets `BONEFISH_REQUIRE_SYCL=1` so that cannot hide a skipped run.
 #![cfg(bonefish_sycl)]

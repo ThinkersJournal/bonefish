@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The SYCL backend lowers a `KernelPlan` (`Backend::lower`) and has no kernel-layer path: it does not
 //! override `Backend::lower_kernel`, so a `KernelFn` is refused with the typed
 //! `LowerError::UnsupportedKernel` and nothing is generated. That includes unpopped 0.40's
