@@ -103,6 +103,12 @@ fn nvidia_sync_and_bulk_copy_statements_are_declined_by_name() {
         ("AsyncWait", Stmt::AsyncWait { pending: 0 }),
         ("AsyncCommit", Stmt::AsyncCommit),
         (
+            "ProxyFence",
+            Stmt::ProxyFence {
+                space: unpopped::exec::MemorySpace::Shared,
+            },
+        ),
+        (
             "CopyAsync",
             Stmt::CopyAsync {
                 dst: bar(),
