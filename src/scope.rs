@@ -53,11 +53,13 @@ use crate::dft::{Dft, Placement};
 use crate::error::{Error, Result, check, last_message};
 use crate::queue::Queue;
 use crate::rdft::RealDft;
-use crate::scalar::{BlasElement, Complex, Element, GemmElement, Scalar};
+use crate::scalar::{BlasElement, Complex, Element, Scalar};
 use crate::usm::UsmBuffer;
 
 mod batched;
 mod dft;
+mod event;
+mod gemm;
 mod half_batched;
 mod half_gemm;
 mod level1;
@@ -98,82 +100,6 @@ impl<T: Element> Operand<T> for Read<'_, T> {
 impl<T: Element> Operand<T> for Write<'_, T> {
     fn buffer(&self) -> &UsmBuffer<T> {
         self.buf
-    }
-}
-
-/// A handle to submitted device work. It cannot outlive its scope. Dropping it only releases the
-/// handle (the work still completes and the scope still waits for it), so leaking one costs
-/// memory, never safety.
-pub struct Event<'scope> {
-    raw: NonNull<c_void>,
-    /// Its queue was created with profiling.
-    profiling: bool,
-    _scope: PhantomData<&'scope mut &'scope ()>,
-}
-
-/// Device-side timing of the work behind an [`Event`], in nanoseconds on the device's own clock.
-/// Only differences between values from the same device are meaningful.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct DeviceTime {
-    /// When the work started on the device.
-    pub start_ns: u64,
-    /// When it finished.
-    pub end_ns: u64,
-}
-
-impl DeviceTime {
-    /// `end - start`.
-    #[must_use]
-    pub fn duration_ns(&self) -> u64 {
-        self.end_ns.saturating_sub(self.start_ns)
-    }
-}
-
-impl Event<'_> {
-    /// Device start and end time of this operation (SYCL `command_start` / `command_end`). Waits
-    /// for the operation first.
-    ///
-    /// # Errors
-    ///
-    /// [`Error::InvalidArgument`] if the queue was not created with profiling
-    /// ([`Queue::new_profiling`]): an error, never a zero. Otherwise the asynchronous error, if the
-    /// operation failed.
-    pub fn device_time(&self) -> Result<DeviceTime> {
-        if !self.profiling {
-            return Err(Error::InvalidArgument(
-                "this event's queue was not created with profiling (Queue::new_profiling)".into(),
-            ));
-        }
-        let (mut start_ns, mut end_ns) = (0_u64, 0_u64);
-        // SAFETY: `raw` is a live event handle; both outputs are valid for writes.
-        check(unsafe {
-            sys::bf_event_profiling(self.raw.as_ptr(), &raw mut start_ns, &raw mut end_ns)
-        })?;
-        Ok(DeviceTime { start_ns, end_ns })
-    }
-
-    /// Wait for this operation and everything before it on the queue.
-    ///
-    /// # Errors
-    ///
-    /// The asynchronous error, if the operation failed after submission.
-    pub fn wait(&self) -> Result<()> {
-        // SAFETY: `raw` is a live event handle owned by `self`.
-        check(unsafe { sys::bf_event_wait(self.raw.as_ptr()) })
-    }
-}
-
-impl Drop for Event<'_> {
-    fn drop(&mut self) {
-        // SAFETY: `raw` came from a `*_async` call and is freed exactly once, here. Freeing a
-        // handle does not cancel or wait for the work.
-        unsafe { sys::bf_event_free(self.raw.as_ptr()) }
-    }
-}
-
-impl std::fmt::Debug for Event<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Event").finish_non_exhaustive()
     }
 }
 
@@ -378,135 +304,10 @@ impl<'scope, 'env: 'scope> Scope<'scope, 'env> {
         }
     }
 
-    /// Non-blocking `c = alpha * op(a) * op(b) + beta * c`, column-major. Returns once the work is
-    /// submitted; the device finishes it later, at the latest when the scope ends.
-    ///
-    /// # Errors
-    ///
-    /// [`Error::InvalidArgument`] for an extent that does not fit its buffer, or when `c` is the
-    /// same buffer as `a` or `b`; [`Error::Sycl`]/[`Error::Mkl`]/[`Error::Other`] if submission
-    /// fails.
-    #[allow(clippy::too_many_arguments)]
-    pub fn gemm<T: GemmElement>(
-        &'scope self,
-        transa: Transpose,
-        transb: Transpose,
-        m: usize,
-        n: usize,
-        k: usize,
-        alpha: T,
-        a: &impl Operand<T>,
-        lda: usize,
-        b: &impl Operand<T>,
-        ldb: usize,
-        beta: T,
-        c: &Write<'scope, T>,
-        ldc: usize,
-    ) -> Result<Event<'scope>> {
-        self.gemm_after(
-            &[],
-            transa,
-            transb,
-            m,
-            n,
-            k,
-            alpha,
-            a,
-            lda,
-            b,
-            ldb,
-            beta,
-            c,
-            ldc,
-        )
-    }
-
-    /// As [`Scope::gemm`], but the work also waits for every event in `after`. Earlier work in
-    /// the scope is already ordered before this (the shim chains submissions); this is for stating
-    /// a dependency explicitly.
-    ///
-    /// # Errors
-    ///
-    /// As [`Scope::gemm`].
-    #[allow(clippy::too_many_arguments)]
-    pub fn gemm_after<T: GemmElement>(
-        &'scope self,
-        after: &[&Event<'scope>],
-        transa: Transpose,
-        transb: Transpose,
-        m: usize,
-        n: usize,
-        k: usize,
-        alpha: T,
-        a: &impl Operand<T>,
-        lda: usize,
-        b: &impl Operand<T>,
-        ldb: usize,
-        beta: T,
-        c: &Write<'scope, T>,
-        ldc: usize,
-    ) -> Result<Event<'scope>> {
-        let (a, b, c) = (a.buffer(), b.buffer(), &*c.buf);
-        let (a_rows, a_cols) = if transa == Transpose::No {
-            (m, k)
-        } else {
-            (k, m)
-        };
-        let (b_rows, b_cols) = if transb == Transpose::No {
-            (k, n)
-        } else {
-            (n, k)
-        };
-        check_matrix("A", a.len(), lda, a_rows, a_cols)?;
-        check_matrix("B", b.len(), ldb, b_rows, b_cols)?;
-        check_matrix("C", c.len(), ldc, m, n)?;
-        if std::ptr::eq(a.raw(), c.raw()) || std::ptr::eq(b.raw(), c.raw()) {
-            return Err(Error::InvalidArgument(
-                "the output buffer is also an input of the same operation".into(),
-            ));
-        }
-        let deps: Vec<*mut c_void> = after.iter().map(|e| e.raw.as_ptr()).collect();
-        // SAFETY: every pointer is USM from this scope's queue (checked when bound) and the
-        // extents above fit inside the buffers. The buffers stay borrowed until the scope ends,
-        // and the scope waits for the queue before that, so the device is finished with them
-        // first. `c` is distinct from `a` and `b` (checked above), and the shim chains this
-        // submission to the queue's previous one, so it cannot overlap earlier ones that name the
-        // same buffers. `deps` are live events of this scope.
-        let raw = unsafe {
-            T::gemm_raw_async(
-                self.queue.raw(),
-                transa.code(),
-                transb.code(),
-                dim("m", m)?,
-                dim("n", n)?,
-                dim("k", k)?,
-                alpha,
-                a.raw(),
-                dim("lda", lda)?,
-                b.raw(),
-                dim("ldb", ldb)?,
-                beta,
-                c.raw(),
-                dim("ldc", ldc)?,
-                if deps.is_empty() {
-                    std::ptr::null()
-                } else {
-                    deps.as_ptr()
-                },
-                deps.len() as i64,
-            )
-        };
-        self.event(raw)
-    }
-
     /// Wrap the event handle a `*_async` call returned, or turn its failure into an error.
     fn event(&'scope self, raw: *mut c_void) -> Result<Event<'scope>> {
         match NonNull::new(raw) {
-            Some(raw) => Ok(Event {
-                raw,
-                profiling: self.queue.is_profiling(),
-                _scope: PhantomData,
-            }),
+            Some(raw) => Ok(Event::new(raw, self.queue.is_profiling())),
             None if !sys::SYCL_AVAILABLE => Err(Error::Unavailable(last_message())),
             None => Err(Error::Other(format!(
                 "submission failed: {}",
@@ -566,6 +367,7 @@ fn distinct<A: Element, B: Element>(
 
 pub use batched::BatchedGemm;
 pub use dft::{Plan, RealPlan};
+pub use event::{DeviceTime, Event};
 
 const NO_DEPS: *const *mut c_void = std::ptr::null();
 

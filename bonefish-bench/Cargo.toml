@@ -1,6 +1,6 @@
 [package]
 name = "bonefish-bench"
-version = "0.0.44"
+version = "0.0.45"
 edition = "2024"
 rust-version = "1.85"
 description = "Benchmark harness for Bonefish gemm, gemm_batch and the half variants: prints JSON rows with the predicate of every number."
@@ -9,5 +9,5 @@ repository = "https://github.com/ThinkersJournal/bonefish"
 publish = false
 
 [dependencies]
-bonefish = { version = "0.0.44", path = ".." }
+bonefish = { version = "0.0.45", path = ".." }
 half = "2.7.1"

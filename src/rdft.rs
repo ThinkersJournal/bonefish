@@ -58,7 +58,7 @@ use std::ptr::NonNull;
 
 use bonefish_sys as sys;
 
-use crate::error::{Error, Result, last_message};
+use crate::error::{Error, Result, check, last_message};
 use crate::queue::Queue;
 use crate::scalar::{Complex, Scalar};
 use crate::usm::UsmBuffer;
@@ -195,7 +195,7 @@ impl<T: Scalar> RealDft<T> {
                 output.raw().cast(),
             )
         };
-        Queue::status(rc)
+        check(rc)
     }
 
     /// Half-spectrum input to real output. Blocking.
@@ -217,7 +217,7 @@ impl<T: Scalar> RealDft<T> {
                 output.raw().cast(),
             )
         };
-        Queue::status(rc)
+        check(rc)
     }
 }
 

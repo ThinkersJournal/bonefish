@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use bonefish_sys as sys;
 
-use crate::error::{Error, Result, check, last_message};
+use crate::error::{Error, Result, last_message};
 
 /// Which device to ask the runtime for.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -167,11 +167,6 @@ impl Queue {
 
     pub(crate) fn raw(&self) -> *mut c_void {
         self.0.raw.as_ptr()
-    }
-
-    /// Turn a shim status into a result. Convenience for the sibling modules.
-    pub(crate) fn status(code: i32) -> Result<()> {
-        check(code)
     }
 }
 
