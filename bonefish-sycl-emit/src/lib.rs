@@ -67,6 +67,8 @@ const DECLINED_STMTS: &[&str] = &[
     "CopyBulk",
     "Tcgen05Commit",
     "WgmmaWait",
+    "WgmmaCommit",
+    "Tcgen05Ld",
     "ProxyFence",
     "Wgmma",
     "Tcgen05Mma",
