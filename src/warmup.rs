@@ -87,7 +87,7 @@ impl Queue {
     ///
     /// # Errors
     ///
-    /// [`Error::Unavailable`] when built without oneAPI; [`Error::Sycl`] when the runtime has no
+    /// [`Error::Unavailable`](crate::Error::Unavailable) when built without oneAPI; [`Error::Sycl`](crate::Error::Sycl) when the runtime has no
     /// such device.
     pub fn new(kind: DeviceKind) -> Result<Queue> {
         let code = match kind {
