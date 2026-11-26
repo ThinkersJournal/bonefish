@@ -169,11 +169,11 @@ impl Backend for Sycl {
             | ElementKind::F4E2M1
             | ElementKind::F6E2M3
             | ElementKind::F6E3M2
-            // Unpopped 0.60.0 (E1a): declined by name. SYCL core has no 128/256-bit integer or
-            // binary128 type usable in device code, and no f8e3m4 / f8ue4m3 scalar (UNVERIFIED: read
-            // from memory of the SYCL 2020 spec and Intel DPC++ extensions, not re-read at this ref;
-            // Intel offers `sycl::half` and `sycl::ext::oneapi::bfloat16`, and wide `ap_int` only in
-            // the FPGA extension).
+            // Unpopped 0.60.0 (E1a): declined by name. The verified reason is this emitter's own:
+            // v1 computes f32 and f64 only (see `lower`), so every other dtype is Unsupported.
+            // UNVERIFIED: not re-read at this ref - any claim that SYCL itself lacks 128/256-bit
+            // integers, binary128, f8e3m4 or f8ue4m3 is from memory, not checked against the SYCL
+            // 2020 spec or Intel DPC++ docs, and nothing here depends on it.
             | ElementKind::F128
             | ElementKind::I128
             | ElementKind::U128
