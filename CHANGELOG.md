@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.45 (allocated by pm-assist 2026-11-26)
+
+- Internal: R15 module splits (`level3/complex`, `scope/{event,gemm}`, sys `stub/half`), the CodeRipper 0.48.1 CI pin, ROADMAP R5f row. No API change; not breaking.
+
 ## 0.0.44 (allocated by pm-assist 2026-11-25)
 
 - `bonefish` (R5c): `blas::gemm_row_major` (row-major `gemm`, the transposed column-major call with operands and `m`/`n` swapped; bounds-check messages name the operand as `gemm` sees it).
