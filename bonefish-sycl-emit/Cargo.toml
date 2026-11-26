@@ -12,3 +12,6 @@ publish = false
 # Pre-1.0 and moving: pinned exactly (unpopped's own advice).
 unpopped = "=0.60.1"
 unpopped-vocab = "=0.60.1"
+
+[dev-dependencies]
+unpopped = { version = "=0.60.1", features = ["fixtures"] }
