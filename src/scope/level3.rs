@@ -3,8 +3,8 @@
 //! buffer an operation writes is distinct from the ones it reads.
 
 use super::{Event, NO_DEPS, Operand, Scope, Write, distinct};
-use crate::blas::{Transpose, check_matrix, dim};
 use crate::error::Result;
+use crate::layout::{Transpose, check_matrix, dim};
 use crate::level2::{Diag, Uplo};
 use crate::level3::{Hermitian3, Level3, Side};
 

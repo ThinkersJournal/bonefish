@@ -13,11 +13,24 @@
 
 use std::sync::Once;
 
+use bonefish_sys as sys;
+
 use crate::blas;
+use crate::queue::DeviceKind;
 use crate::scalar::{BlasElement, GemmElement};
-use crate::{Queue, Transpose, UsmBuffer, UsmKind};
+use crate::{Queue, Result, Transpose, UsmBuffer, UsmKind};
 
 static WARMED: Once = Once::new();
+
+/// A queue just made: warm up if it is the first in this process, then hand it back. Every queue
+/// constructor ends here, which is why the constructors live in this module and in `device`, above
+/// `blas`: `queue` must not import the module that imports it.
+pub(crate) fn finish(made: Result<Queue>) -> Result<Queue> {
+    if let Ok(queue) = &made {
+        once(queue);
+    }
+    made
+}
 
 /// Warm every routine family once, if `queue` is the first one in this process.
 pub(crate) fn once(queue: &Queue) {
@@ -67,4 +80,42 @@ fn warm<T: BlasElement + GemmElement + Copy>(q: &Queue, one: T) {
         &mut y,
         2,
     );
+}
+
+impl Queue {
+    /// Create a queue.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Unavailable`] when built without oneAPI; [`Error::Sycl`] when the runtime has no
+    /// such device.
+    pub fn new(kind: DeviceKind) -> Result<Queue> {
+        let code = match kind {
+            DeviceKind::Default => 0,
+            DeviceKind::Cpu => 1,
+            DeviceKind::Gpu => 2,
+        };
+        // SAFETY: plain call; a null return is handled by `from_raw`.
+        finish(Queue::from_raw(unsafe { sys::bf_queue_new(code) }, false))
+    }
+
+    /// Create a queue whose events can report device time ([`Event::device_time`](crate::Event::device_time)). Profiling can
+    /// only be chosen when the queue is made. It may add overhead to every submission; a
+    /// measurement that wants the least should compare against [`Scope::noop`](crate::Scope::noop) on the same queue.
+    ///
+    /// # Errors
+    ///
+    /// As [`Queue::new`].
+    pub fn new_profiling(kind: DeviceKind) -> Result<Queue> {
+        let code = match kind {
+            DeviceKind::Default => 0,
+            DeviceKind::Cpu => 1,
+            DeviceKind::Gpu => 2,
+        };
+        // SAFETY: plain call; a null return is handled by `from_raw`.
+        finish(Queue::from_raw(
+            unsafe { sys::bf_queue_new_ex(code, -1, 1) },
+            true,
+        ))
+    }
 }

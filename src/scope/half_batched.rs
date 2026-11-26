@@ -10,8 +10,8 @@ use half::{bf16, f16};
 
 use super::batched::check_batched;
 use super::{Event, Operand, Scope, Write};
-use crate::blas::{Transpose, dim};
 use crate::error::{Error, Result};
+use crate::layout::{Transpose, dim};
 
 /// The shared signature of the four shim functions: 16-bit words for `A` and `B`.
 type Shim<P> = unsafe extern "C" fn(

@@ -5,8 +5,8 @@
 use std::ffi::c_void;
 
 use super::{Event, Operand, Scope, Write};
-use crate::blas::{Transpose, check_matrix, dim};
 use crate::error::{Error, Result};
+use crate::layout::{Transpose, check_matrix, dim};
 use crate::scalar::GemmElement;
 
 impl<'scope, 'env: 'scope> Scope<'scope, 'env> {

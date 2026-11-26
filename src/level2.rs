@@ -6,8 +6,8 @@ use std::ffi::c_void;
 
 use bonefish_sys as sys;
 
-use crate::blas::Transpose;
 use crate::error::Result;
+use crate::layout::Transpose;
 use crate::queue::Queue;
 use crate::scalar::Scalar;
 use crate::usm::UsmBuffer;

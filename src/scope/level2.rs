@@ -3,8 +3,8 @@
 //! Rust, and a buffer an operation writes is distinct from the ones it reads.
 
 use super::{Event, NO_DEPS, Operand, Scope, Write, check_vec, distinct};
-use crate::blas::{Transpose, check_matrix, dim};
 use crate::error::{Error, Result};
+use crate::layout::{Transpose, check_matrix, dim};
 use crate::level2::{Diag, Level2, Uplo};
 
 impl<'scope, 'env: 'scope> Scope<'scope, 'env> {

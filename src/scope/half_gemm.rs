@@ -19,8 +19,8 @@ use bonefish_sys as sys;
 use half::{bf16, f16};
 
 use super::{Event, Operand, Scope, Write};
-use crate::blas::{Transpose, check_matrix, dim};
 use crate::error::{Error, Result};
+use crate::layout::{Transpose, check_matrix, dim};
 
 /// The shared signature of the four shim functions: 16-bit words for `A` and `B`.
 type Shim<P> = unsafe extern "C" fn(
