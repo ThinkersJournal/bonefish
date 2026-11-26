@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
 # ROADMAP R7: build sweep.cpp once per floating-point flag set and print each table.
 # Linux after `source /opt/intel/oneapi/setvars.sh`, or Windows in Git Bash with the oneAPI compiler
 # and the MSVC/Windows SDK library paths on LIB. Select a device with ONEAPI_DEVICE_SELECTOR.
