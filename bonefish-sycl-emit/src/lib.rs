@@ -81,6 +81,11 @@ const DECLINED_STMTS: &[&str] = &[
     "AsyncCommit",
     "Collective",
     "CollectiveTuple",
+    // Unpopped 0.62.0 opaque-tile statements: lifted by CireSnave 2026-11-26 (board 519 B) as his risk call; not a clearance.
+    "TileLoad",
+    "TileMma",
+    "TileFill",
+    "TileStore",
 ];
 
 /// The first declined statement in `block`, searching `If`, `For` and `While` bodies to any depth.
