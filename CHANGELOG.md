@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (version to be allocated by pm-assist; BREAKING: unpopped 0.62.0 take)
+## 0.2.0 (allocated by pm-assist 2026-11-27; BREAKING: unpopped 0.62.0 take: the public API exposes unpopped types, Sycl implements unpopped::backend::Backend and bonefish_sycl_parse::SYCL is an unpopped_convert::Frontend)
 
 - Take of unpopped =0.61.0 (UnaryOp gains Popc, Clz, Brev). The emitter computes f32/f64 only, so it declines all three by name at every dtype (`DeclinedOp::Unary`); the parser maps none of them. Test: `bit_ops_are_declined_by_name_at_every_dtype`. SYCL-device tests not rerun (stub build gate only).
 - `lower_kernel` refuses a kernel that declares I128/U128/I256/U256 (compute type, param, local or alloc) BY dtype name instead of the generic kernel-layer refusal; the plan path already refused (unpopped InadmissiblePlan before the backend). Wide-int lowering stays held (carry-flag emit hold). Test: `tests/wide_int_refusal.rs` (red on the generic message first).
