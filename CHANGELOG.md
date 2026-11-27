@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.0 (allocated by pm-assist 2026-11-27; BREAKING: unpopped 0.60.1 take, seven new dtype rows declined by name)
+
+- One day PR: the support fixes, the take of unpopped ~0.60.1 (the public emitter and parser now decline the seven KISS 0.24.0 dtype rows F128 I128 U128 I256 U256 F8E3M4 F8UE4M3 by name; `dtype_support` tests), and the fixtures test (the old Wgmma/Tcgen05Mma tests did not compile on 0.60.1). SYCL-device tests were not rerun (stub build gate only). The 0.58 and 0.59 pins were skipped.
+
 ## 0.0.45 (allocated by pm-assist 2026-11-26)
 
 - Internal: R15 module splits (`level3/complex`, `scope/{event,gemm}`, sys `stub/half`), the CodeRipper 0.48.1 CI pin, ROADMAP R5f row. No API change; not breaking.
