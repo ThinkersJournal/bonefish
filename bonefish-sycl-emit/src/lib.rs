@@ -50,7 +50,7 @@ use unpopped::cfamily::{
     select_f32, select_f64, store_expr_of, unary_f32, unary_f64,
 };
 use unpopped::ir::{BinaryOp, DagNode, ExprDag, ScalarExpr, UnaryOp};
-use unpopped::kernel::{Block, KernelFn, Stmt};
+use unpopped::kernel::{Block, KernelFn, ParamKind, Stmt};
 use unpopped::plan::{KernelPlan, Schedule};
 use unpopped_vocab::{ElementKind, TargetId};
 
@@ -81,7 +81,31 @@ const DECLINED_STMTS: &[&str] = &[
     "AsyncCommit",
     "Collective",
     "CollectiveTuple",
+    // Unpopped 0.62.0 opaque-tile statements: lifted by CireSnave 2026-11-26 (board 519 B) as his risk call; not a clearance.
+    "TileLoad",
+    "TileMma",
+    "TileFill",
+    "TileStore",
 ];
+
+/// The first wide-integer dtype a kernel declares as its compute type, a parameter, a local or an allocation.
+fn find_wide_dtype(kernel: &KernelFn) -> Option<ElementKind> {
+    let params = kernel.params.iter().filter_map(|p| match &p.kind {
+        ParamKind::Buffer { elem, .. } => Some(*elem),
+        ParamKind::Scalar { ty, .. } => Some(*ty),
+        _ => None,
+    });
+    std::iter::once(kernel.compute)
+        .chain(params)
+        .chain(kernel.locals.iter().map(|l| l.elem))
+        .chain(kernel.allocs.iter().map(|a| a.elem))
+        .find(|d| {
+            matches!(
+                d,
+                ElementKind::I128 | ElementKind::U128 | ElementKind::I256 | ElementKind::U256
+            )
+        })
+}
 
 /// The first declined statement in `block`, searching `If`, `For` and `While` bodies to any depth.
 fn find_declined(block: &Block) -> Option<&'static str> {
@@ -119,6 +143,16 @@ impl Backend for Sycl {
         // No kernel-layer path: every kernel is refused. A statement of a family that has no Intel
         // counterpart here is named in the reason at any depth (NVIDIA mbarrier / bulk-copy / wgmma /
         // tcgen05; CireSnave 2026-11-16 patent note on unpopped's `Stmt::MbarInit`).
+        // A wide integer (unpopped 0.61.3+ computes I128/U128/I256/U256) is refused by dtype name;
+        // lowering it is held (carry-flag emit-lowering hold, Intel US11531542B2).
+        if let Some(dt) = find_wide_dtype(kernel) {
+            return Err(LowerError::UnsupportedKernel {
+                detail: format!(
+                    "backend `sycl` declines dtype `{dt:?}` by name (no SYCL lowering of wide integers; kernel `{}`)",
+                    kernel.name
+                ),
+            });
+        }
         if let Some(name) = find_declined(&kernel.body) {
             return Err(LowerError::UnsupportedKernel {
                 detail: format!(
@@ -438,6 +472,18 @@ fn spelled(s: String, op: DeclinedOp, dtype: ElementKind) -> Result<Spelling, Lo
 }
 
 fn sycl_unary(op: UnaryOp, x: String, dtype: ElementKind) -> Result<Spelling, LowerError> {
+    // Unpopped 0.61.0: `Popc`, `Clz` and `Brev` are integer bit operations; this emitter computes `f32` and
+    // `f64` only and has no integer path, so they are declined by name at every dtype. Without this arm
+    // the neutral float spellers panic on them (unpopped 0.61.0 `cfamily.rs`). SYCL facts: none cited.
+    if op.is_bit_op() {
+        return Ok(Spelling::Declined(Decline::UnsupportedDtypeForOp {
+            op: DeclinedOp::Unary(op),
+            dtype,
+            why: format!(
+                "{op:?} is an integer bit operation; the sycl backend computes f32 and f64 only"
+            ),
+        }));
+    }
     match dtype {
         ElementKind::F32 => spelled(unary_f32(op, x), DeclinedOp::Unary(op), dtype),
         ElementKind::F64 => spelled(unary_f64(op, x), DeclinedOp::Unary(op), dtype),
@@ -504,6 +550,33 @@ mod tests {
             "sycl::fabs(sycl::sqrt(x))"
         );
         assert_eq!(sycl_math("(a + b) * in1[i]").unwrap(), "(a + b) * in1[i]");
+    }
+
+    #[test]
+    fn bit_ops_are_declined_by_name_at_every_dtype() {
+        // Positive control: a float op at f32 spells.
+        assert!(matches!(
+            sycl_unary(UnaryOp::Exp, "x".to_string(), ElementKind::F32),
+            Ok(Spelling::Spelled(_))
+        ));
+        for op in [UnaryOp::Popc, UnaryOp::Clz, UnaryOp::Brev] {
+            for dt in [
+                ElementKind::F32,
+                ElementKind::F64,
+                ElementKind::I32,
+                ElementKind::U32,
+            ] {
+                match sycl_unary(op, "x".to_string(), dt) {
+                    Ok(Spelling::Declined(Decline::UnsupportedDtypeForOp {
+                        op: d, dtype, ..
+                    })) => {
+                        assert_eq!(d, DeclinedOp::Unary(op));
+                        assert_eq!(dtype, dt);
+                    }
+                    other => panic!("{op:?} at {dt:?} must decline, got {other:?}"),
+                }
+            }
+        }
     }
 
     #[test]

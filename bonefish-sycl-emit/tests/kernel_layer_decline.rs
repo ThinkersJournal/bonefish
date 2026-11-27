@@ -76,6 +76,10 @@ const DECLINED: &[&str] = &[
     "AsyncCommit",
     "Collective",
     "CollectiveTuple",
+    "TileLoad",
+    "TileMma",
+    "TileFill",
+    "TileStore",
 ];
 
 /// The kernel a fixture lowers: the one kernel, or the entry function of the module.

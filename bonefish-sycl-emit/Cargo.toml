@@ -1,6 +1,6 @@
 [package]
 name = "bonefish-sycl-emit"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 description = "SYCL/DPC++ backend for the neutral unpopped kernel generator: lowers a KernelPlan to SYCL C++ source."
@@ -10,8 +10,8 @@ publish = false
 
 [dependencies]
 # Pre-1.0 and moving: pinned exactly (unpopped's own advice).
-unpopped = "=0.60.1"
-unpopped-vocab = "=0.60.1"
+unpopped = "=0.62.0"
+unpopped-vocab = "=0.62.0"
 
 [dev-dependencies]
-unpopped = { version = "=0.60.1", features = ["fixtures"] }
+unpopped = { version = "=0.62.0", features = ["fixtures"] }
