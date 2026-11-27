@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased (version to be allocated by pm-assist; BREAKING: unpopped 0.61.0 take)
+
+- Take of unpopped =0.61.0 (UnaryOp gains Popc, Clz, Brev). The emitter computes f32/f64 only, so it declines all three by name at every dtype (`DeclinedOp::Unary`); the parser maps none of them. Test: `bit_ops_are_declined_by_name_at_every_dtype`. SYCL-device tests not rerun (stub build gate only).
+
 ## 0.1.0 (allocated by pm-assist 2026-11-27; BREAKING: unpopped 0.60.1 take, seven new dtype rows declined by name)
 
 - One day PR: the support fixes, the take of unpopped ~0.60.1 (the public emitter and parser now decline the seven KISS 0.24.0 dtype rows F128 I128 U128 I256 U256 F8E3M4 F8UE4M3 by name; `dtype_support` tests), and the fixtures test (the old Wgmma/Tcgen05Mma tests did not compile on 0.60.1). SYCL-device tests were not rerun (stub build gate only). The 0.58 and 0.59 pins were skipped.

@@ -10,11 +10,11 @@ publish = false
 
 [dependencies]
 # Pre-1.0 and moving: pinned exactly (unpopped's own advice).
-unpopped = "=0.60.1"
-unpopped-convert = "=0.60.1"
+unpopped = "=0.61.0"
+unpopped-convert = "=0.61.0"
 tree-sitter = "0.27"
 tree-sitter-cpp = "0.23"
 
 [dev-dependencies]
-unpopped-vocab = "=0.60.1"
+unpopped-vocab = "=0.61.0"
 bonefish-sycl-emit = { path = "../bonefish-sycl-emit" }
