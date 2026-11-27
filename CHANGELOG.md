@@ -3,6 +3,7 @@
 ## Unreleased (version to be allocated by pm-assist; BREAKING: unpopped 0.62.0 take)
 
 - Take of unpopped =0.61.0 (UnaryOp gains Popc, Clz, Brev). The emitter computes f32/f64 only, so it declines all three by name at every dtype (`DeclinedOp::Unary`); the parser maps none of them. Test: `bit_ops_are_declined_by_name_at_every_dtype`. SYCL-device tests not rerun (stub build gate only).
+- `lower_kernel` refuses a kernel that declares I128/U128/I256/U256 (compute type, param, local or alloc) BY dtype name instead of the generic kernel-layer refusal; the plan path already refused (unpopped InadmissiblePlan before the backend). Wide-int lowering stays held (carry-flag emit hold). Test: `tests/wide_int_refusal.rs` (red on the generic message first).
 - Take of unpopped =0.62.0 (supersedes 0.61.0; Stmt gains TileLoad, TileMma, TileFill, TileStore; MemorySpace gains Tile). The emitter declines the four statements by name (kernel-layer, any depth); no SYCL lowering is built. Tile text: lifted by CireSnave 2026-11-26 (board 519 B) as his risk call; not a clearance; no attorney; the Intel/NVIDIA tile-instruction method and medium claims remain NEEDS MORE as read. The collective decline for SYCL/Intel stands.
 
 ## 0.1.0 (allocated by pm-assist 2026-11-27; BREAKING: unpopped 0.60.1 take, seven new dtype rows declined by name)

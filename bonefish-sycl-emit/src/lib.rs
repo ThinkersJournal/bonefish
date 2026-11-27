@@ -50,7 +50,7 @@ use unpopped::cfamily::{
     select_f32, select_f64, store_expr_of, unary_f32, unary_f64,
 };
 use unpopped::ir::{BinaryOp, DagNode, ExprDag, ScalarExpr, UnaryOp};
-use unpopped::kernel::{Block, KernelFn, Stmt};
+use unpopped::kernel::{Block, KernelFn, ParamKind, Stmt};
 use unpopped::plan::{KernelPlan, Schedule};
 use unpopped_vocab::{ElementKind, TargetId};
 
@@ -88,6 +88,25 @@ const DECLINED_STMTS: &[&str] = &[
     "TileStore",
 ];
 
+/// The first wide-integer dtype a kernel declares as its compute type, a parameter, a local or an allocation.
+fn find_wide_dtype(kernel: &KernelFn) -> Option<ElementKind> {
+    let params = kernel.params.iter().filter_map(|p| match &p.kind {
+        ParamKind::Buffer { elem, .. } => Some(*elem),
+        ParamKind::Scalar { ty, .. } => Some(*ty),
+        _ => None,
+    });
+    std::iter::once(kernel.compute)
+        .chain(params)
+        .chain(kernel.locals.iter().map(|l| l.elem))
+        .chain(kernel.allocs.iter().map(|a| a.elem))
+        .find(|d| {
+            matches!(
+                d,
+                ElementKind::I128 | ElementKind::U128 | ElementKind::I256 | ElementKind::U256
+            )
+        })
+}
+
 /// The first declined statement in `block`, searching `If`, `For` and `While` bodies to any depth.
 fn find_declined(block: &Block) -> Option<&'static str> {
     for st in &block.0 {
@@ -124,6 +143,16 @@ impl Backend for Sycl {
         // No kernel-layer path: every kernel is refused. A statement of a family that has no Intel
         // counterpart here is named in the reason at any depth (NVIDIA mbarrier / bulk-copy / wgmma /
         // tcgen05; CireSnave 2026-11-16 patent note on unpopped's `Stmt::MbarInit`).
+        // A wide integer (unpopped 0.61.3+ computes I128/U128/I256/U256) is refused by dtype name;
+        // lowering it is held (carry-flag emit-lowering hold, Intel US11531542B2).
+        if let Some(dt) = find_wide_dtype(kernel) {
+            return Err(LowerError::UnsupportedKernel {
+                detail: format!(
+                    "backend `sycl` declines dtype `{dt:?}` by name (no SYCL lowering of wide integers; kernel `{}`)",
+                    kernel.name
+                ),
+            });
+        }
         if let Some(name) = find_declined(&kernel.body) {
             return Err(LowerError::UnsupportedKernel {
                 detail: format!(
