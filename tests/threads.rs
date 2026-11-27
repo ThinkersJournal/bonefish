@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Several host threads using the safe API. This tests the claim that `Queue` and `UsmBuffer` are
 //! `Send + Sync`; it cannot prove it, and on the first Linux CI run it found a problem: with a
 //! queue shared by four threads, the combined `gemm` test and the per-thread-DFT test both ran for

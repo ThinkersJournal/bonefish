@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! A queue freed right after a wait must not take the process down when the runtime posts the
 //! task's error a moment late (ROADMAP R10).
 //!

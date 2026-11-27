@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Level 2 BLAS beyond `gemv` through the safe API (R3): `rotm`, `symv`, `syr`, `syr2`, `trmv`,
 //! `trsv`, `gbmv`. Hand-computed values; a triangle that must not be touched holds a poison value.
 //! Needs a device; without oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`.

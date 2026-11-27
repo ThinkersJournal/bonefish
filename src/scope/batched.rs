@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Strided batched `gemm` on [`Scope`] (non-blocking) for `f32` and `f64`: `batch` independent
 //! products, operand `i` at `base + i * stride` elements. Extents, strides and output aliasing are
 //! checked in Rust. The blocking form is [`crate::blas::gemm_batch_strided`].
@@ -7,8 +8,8 @@ use std::ffi::c_void;
 use bonefish_sys as sys;
 
 use super::{Event, Operand, Scope, Write};
-use crate::blas::{Transpose, check_matrix, dim};
 use crate::error::{Error, Result};
+use crate::layout::{Transpose, check_matrix, dim};
 use crate::scalar::Scalar;
 
 /// Element types with a strided batched `gemm`: `f32` and `f64`. Sealed through `Element`.

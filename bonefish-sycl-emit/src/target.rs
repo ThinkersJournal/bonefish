@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Proposed `sycl:` target-capability vocabulary (KISS-Classify §6.8), as code.
 //!
 //! **A proposal, not a registered namespace**: KISS records the vocabulary, and the maintainer's

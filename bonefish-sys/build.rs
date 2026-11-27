@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Builds `shim/*.cpp` into a shared library with Intel's DPC++ compiler (`icpx -fsycl`) and
 //! links it. Without oneAPI the crate still builds (the `bonefish_sycl` cfg is simply not set), so
 //! `cargo test --all-features` works anywhere; set `BONEFISH_REQUIRE_SYCL=1` to turn "no oneAPI

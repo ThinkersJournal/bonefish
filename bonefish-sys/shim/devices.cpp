@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // Device enumeration and selection (R5a, docs/FUEL-INTEL-GPU-DESIGN.md): list every SYCL device,
 // read identifying information where the device offers it, and create a queue on a chosen one.
 // None of this calls oneMKL, so none of it takes the oneMKL lock.

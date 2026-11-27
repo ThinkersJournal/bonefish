@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! DFT on [`Scope`]: plan binding and the forward and backward transforms. Split out of
 //! `scope.rs` (R15).
 

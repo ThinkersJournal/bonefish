@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Real-domain DFT through the shim (R3b): out-of-place real <-> half-spectrum complex. Needs
 //! oneAPI at build time, so the file is empty without it. CPU/OpenCL device only; the data layout
 //! below is oneMKL's default for an out-of-place real descriptor, checked here against a naive DFT

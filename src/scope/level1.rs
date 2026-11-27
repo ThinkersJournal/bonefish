@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Level 1 and `gemv` on [`Scope`]: `axpy`, `scal`, `copy`, `swap`, `dot`, `dotc`, `nrm2`, `asum`,
 //! `iamax`, `gemv`. Split out of `scope.rs` (R15).
 

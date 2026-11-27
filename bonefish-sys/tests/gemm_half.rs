@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Half-precision `gemm` (non-blocking) through the shim on the CPU (OpenCL) device: the four
 //! oneMKL variants against a hand-computed 2 x 2 result. Compiled out without oneAPI; the oneAPI
 //! CI job sets `BONEFISH_REQUIRE_SYCL=1`. A device that does not run a variant is REPORTED as

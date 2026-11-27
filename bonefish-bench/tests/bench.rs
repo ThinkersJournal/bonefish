@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! `bonefish-bench` tests. They check that rows are well formed, that verification passes on the
 //! real answer and FAILS on a deliberately wrong layout (with a margin, so the tolerance is
 //! calibrated against a sabotage rather than assumed), and that the command line parses. They

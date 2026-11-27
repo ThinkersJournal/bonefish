@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Per-test watchdog for the `bonefish-sys` tests (ROADMAP R17, bonefish#40: all dftr tests hung
 //! about an hour in one full run and have not reproduced). `guarded` fails a test that overruns
 //! its limit with a named panic. With `BONEFISH_TEST_WATCHDOG_SECS=<n>` set (the limit becomes

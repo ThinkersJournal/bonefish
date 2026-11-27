@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! R2 remainder, level 3: `symm`, `syrk`, `syr2k`, `trmm`, `trsm` through the shim on the CPU
 //! (OpenCL) device, blocking and non-blocking, single and double precision from one macro. The
 //! triangle a routine must not touch is poisoned with 99. Compiled out without oneAPI; the oneAPI

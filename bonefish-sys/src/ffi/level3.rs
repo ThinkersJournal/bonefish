@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Foreign declarations: level 3 BLAS (`gemm`). Split out of `lib.rs` (R15).
 
 use std::ffi::c_void;

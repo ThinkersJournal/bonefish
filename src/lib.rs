@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Bonefish: a safe Rust interface to Intel oneAPI / oneMKL on SYCL devices.
 //!
 //! - [`Queue`]: a SYCL queue on one device ([`DeviceKind`]).
@@ -32,6 +33,7 @@ pub mod blas;
 mod device;
 mod dft;
 mod error;
+mod layout;
 pub mod level2;
 pub mod level3;
 mod queue;
@@ -41,12 +43,12 @@ mod scope;
 mod usm;
 mod warmup;
 
-pub use blas::Transpose;
 pub use device::{DeviceInfo, DeviceType, find_by_pci_address, find_by_uuid};
 pub use dft::{Dft, Placement};
 pub use error::{Error, Result};
 /// The `half` crate, re-exported: the `f16`/`bf16` types the half `gemm` methods take.
 pub use half;
+pub use layout::Transpose;
 pub use level2::{Diag, Level2, Uplo};
 pub use level3::{Hermitian3, Level3, Side};
 pub use queue::{DeviceKind, Queue};

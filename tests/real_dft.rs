@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! `RealDft`: real <-> half-spectrum complex (R3b). Needs a device; without oneAPI the tests skip
 //! loudly unless `BONEFISH_REQUIRE_SYCL=1`. CPU/OpenCL device only; the layout is UNVERIFIED on a GPU.
 

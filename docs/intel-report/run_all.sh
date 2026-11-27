@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
 # Builds the three reproducers and runs every measurement in docs/INTEL-REPORT-DRAFT.md, printing
 # one table per finding. Linux after `source /opt/intel/oneapi/setvars.sh`, or Windows in Git Bash
 # started from a oneAPI command prompt (setvars.bat).

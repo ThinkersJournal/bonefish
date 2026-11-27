@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Raw FFI to Bonefish's C shim over oneMKL's SYCL interface. See the `bonefish` crate for the
 //! safe API.
 //!

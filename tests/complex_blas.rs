@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Complex level 1 and `gemv` (`Complex<f32>`, `Complex<f64>`) through `bonefish::blas` and `Scope`.
 //! Needs a device; without oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`. CPU/OpenCL
 //! device only; nothing here has run on a GPU.

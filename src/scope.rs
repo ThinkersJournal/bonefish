@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Non-blocking operations inside a scope (R3c step 2; design: `docs/ASYNC-DESIGN.md`).
 //!
 //! ```text
@@ -48,9 +49,9 @@ use std::ptr::NonNull;
 
 use bonefish_sys as sys;
 
-use crate::blas::{Transpose, check_matrix, dim};
 use crate::dft::{Dft, Placement};
 use crate::error::{Error, Result, check, last_message};
+use crate::layout::{Transpose, check_matrix, dim};
 use crate::queue::Queue;
 use crate::rdft::RealDft;
 use crate::scalar::{BlasElement, Complex, Element, Scalar};

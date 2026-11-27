@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Device enumeration and selection (R5a). Needs a device; without oneAPI the listing must fail
 //! with `Unavailable` (and with `BONEFISH_REQUIRE_SYCL=1` a build without SYCL is a failure). The
 //! CPU device is what CI and the laptop have; **no GPU has run any of this** (UNVERIFIED), so what

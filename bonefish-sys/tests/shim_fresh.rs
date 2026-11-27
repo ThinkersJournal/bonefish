@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The shim DLL a test process loads must be the one this build produced: a stale copy earlier on
 //! the loader path once hung `tests/level3.rs` for hours. Prints the loaded path and timestamp.
 

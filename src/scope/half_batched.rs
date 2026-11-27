@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Strided batched half-precision `gemm` on [`Scope`] (non-blocking): `half::f16` and `half::bf16`
 //! inputs, the four oneMKL `gemm_batch` variants named as in [`super::half_gemm`]. Operand `i` is
 //! at `base + i * stride` elements; extents of the whole batch, `stride_c` and output aliasing are
@@ -10,8 +11,8 @@ use half::{bf16, f16};
 
 use super::batched::check_batched;
 use super::{Event, Operand, Scope, Write};
-use crate::blas::{Transpose, dim};
 use crate::error::{Error, Result};
+use crate::layout::{Transpose, dim};
 
 /// The shared signature of the four shim functions: 16-bit words for `A` and `B`.
 type Shim<P> = unsafe extern "C" fn(

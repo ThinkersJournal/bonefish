@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The SYCL backend lowers a `KernelPlan` (`Backend::lower`) and has no kernel-layer path: it does not
 //! override `Backend::lower_kernel`, so a `KernelFn` is refused with the typed
 //! `LowerError::UnsupportedKernel` and nothing is generated. That includes unpopped 0.40's
@@ -7,7 +8,8 @@
 
 use bonefish_sycl_emit::Sycl;
 use unpopped::backend::{Backend, LowerError};
-use unpopped::exec::{LaunchShape, Scope};
+use unpopped::exec::LaunchShape;
+use unpopped::fixtures::{Fixture, fixtures};
 use unpopped::ir::{ReduceOp, ScalarExpr};
 use unpopped::kernel::{
     AtomicOp, Block, BufferRole, CollectiveKind, KernelFn, Param, Place, Stmt, check_kernel,
@@ -50,139 +52,147 @@ fn a_kernel_with_an_atomic_is_refused_with_a_named_reason() {
     }
 }
 
-/// unpopped 0.56.2's NVIDIA-shaped statements are declined BY NAME (CireSnave 2026-11-16 patent note).
+/// Statements this backend declines BY NAME (CireSnave 2026-11-16 patent note); the list is spelled out here on
+/// purpose so that removing a name from the emitter's own list fails this test (a mutant check).
+const DECLINED: &[&str] = &[
+    "MbarInit",
+    "MbarArrive",
+    "MbarCompleteTx",
+    "MbarWait",
+    "CopyBulk",
+    "Tcgen05Commit",
+    "WgmmaWait",
+    "WgmmaCommit",
+    "Tcgen05Ld",
+    "ProxyFence",
+    "Wgmma",
+    "Tcgen05Mma",
+    "Tcgen05Alloc",
+    "Tcgen05Dealloc",
+    "Tcgen05RelinquishPermit",
+    "CopyUnpack",
+    "AsyncWait",
+    "CopyAsync",
+    "AsyncCommit",
+    "Collective",
+    "CollectiveTuple",
+];
+
+/// The kernel a fixture lowers: the one kernel, or the entry function of the module.
+fn entry(f: &Fixture) -> KernelFn {
+    match f {
+        Fixture::Kernel(k) => k.clone(),
+        Fixture::Module { module, entry } => module.fns[*entry as usize].clone(),
+        other => panic!("unknown fixture shape {other:?}"),
+    }
+}
+
+fn reason(k: &KernelFn) -> String {
+    match Sycl.lower_kernel(k) {
+        Err(LowerError::UnsupportedKernel { detail }) => detail,
+        other => panic!("{}: expected UnsupportedKernel, got {other:?}", k.name),
+    }
+}
+
+/// Every `Stmt` variant has a checker-valid fixture in unpopped (feature `fixtures`); each is refused, and the
+/// ones in [`DECLINED`] are refused BY NAME, bare and nested under `If` / `For` / `While`.
 #[test]
-fn nvidia_sync_and_bulk_copy_statements_are_declined_by_name() {
+fn every_stmt_fixture_is_valid_and_refused_and_declined_ones_by_name() {
     let i32k = ElementKind::I32;
-    let bar = || Place::Logical {
-        buffer: 0,
-        coords: vec![ScalarExpr::ConstInt(0, i32k)],
-    };
     let c = |v: i64| ScalarExpr::ConstInt(v, i32k);
-    let cases: Vec<(&str, Stmt)> = vec![
-        (
-            "MbarInit",
-            Stmt::MbarInit {
-                bar: bar(),
-                count: c(1),
-            },
-        ),
-        (
-            "MbarArrive",
-            Stmt::MbarArrive {
-                bar: bar(),
-                tx: None,
-            },
-        ),
-        (
-            "MbarCompleteTx",
-            Stmt::MbarCompleteTx {
-                bar: bar(),
-                bytes: c(16),
-            },
-        ),
-        (
-            "MbarWait",
-            Stmt::MbarWait {
-                bar: bar(),
-                parity: c(0),
-            },
-        ),
-        (
-            "CopyBulk",
-            Stmt::CopyBulk {
-                dst: bar(),
-                src: bar(),
-                elems: 4,
-                bar: bar(),
-            },
-        ),
-        ("Tcgen05Commit", Stmt::Tcgen05Commit { bar: bar() }),
-        ("WgmmaWait", Stmt::WgmmaWait { pending: 0 }),
-        ("AsyncWait", Stmt::AsyncWait { pending: 0 }),
-        ("AsyncCommit", Stmt::AsyncCommit),
-        (
-            "CopyAsync",
-            Stmt::CopyAsync {
-                dst: bar(),
-                src: bar(),
-                elems: 4,
-                valid: None,
-                cache: Default::default(),
-                l2_prefetch: None,
-            },
-        ),
-        (
-            "Collective",
-            Stmt::Collective {
-                kind: CollectiveKind::Reduce(ReduceOp::Sum),
-                value: c(1),
-                result: 0,
-                scope: Scope::Subgroup,
-            },
-        ),
-        (
-            "CollectiveTuple",
-            Stmt::CollectiveTuple {
-                kind: CollectiveKind::Reduce(ReduceOp::Sum),
-                values: vec![c(1)],
-                results: vec![0],
-                scope: Scope::Subgroup,
-            },
-        ),
-    ];
-    let nest = |depth: u8, st: Stmt| -> Stmt {
-        // 0: bare; 1: If.then; 2: For inside If.els; 3: While inside For inside If.then.
-        let wrap_while = |s: Stmt| Stmt::While {
-            cond: c(1),
-            body: Block(vec![s]),
+    let all = fixtures();
+    assert!(all.len() >= DECLINED.len(), "{} fixtures", all.len());
+    for d in DECLINED {
+        assert!(all.iter().any(|(n, _)| n == d), "no fixture named {d}");
+    }
+    for (name, fx) in &all {
+        assert_eq!(
+            fx.check(),
+            Ok(()),
+            "{name}: the fixture must be checker-valid"
+        );
+        let k = entry(fx);
+        let wrap = |depth: u8| -> KernelFn {
+            let mut w = k.clone();
+            let inner = Block(k.body.0.clone());
+            w.body = Block(vec![match depth {
+                0 => return k.clone(),
+                1 => Stmt::If {
+                    cond: c(1),
+                    then: inner,
+                    els: Block(vec![]),
+                },
+                2 => Stmt::If {
+                    cond: c(1),
+                    then: Block(vec![]),
+                    els: Block(vec![Stmt::While {
+                        cond: c(1),
+                        body: inner,
+                    }]),
+                },
+                _ => Stmt::If {
+                    cond: c(1),
+                    then: Block(vec![Stmt::While {
+                        cond: c(1),
+                        body: Block(vec![Stmt::While {
+                            cond: c(1),
+                            body: inner,
+                        }]),
+                    }]),
+                    els: Block(vec![]),
+                },
+            }]);
+            w
         };
-        let wrap_for = |s: Stmt| Stmt::For {
-            local: 0,
-            start: c(0),
-            end: c(1),
-            step: c(1),
-            unroll: Default::default(),
-            body: Block(vec![s]),
-        };
-        match depth {
-            0 => st,
-            1 => Stmt::If {
-                cond: c(1),
-                then: Block(vec![st]),
-                els: Block(vec![]),
-            },
-            2 => Stmt::If {
-                cond: c(1),
-                then: Block(vec![]),
-                els: Block(vec![wrap_for(st)]),
-            },
-            _ => Stmt::If {
-                cond: c(1),
-                then: Block(vec![wrap_for(wrap_while(st))]),
-                els: Block(vec![]),
-            },
-        }
-    };
-    for (name, st) in cases {
         for depth in 0..=3u8 {
-            let k = KernelFn::new(
-                "nv_stmt",
-                i32k,
-                vec![Param::buffer("c", i32k, BufferRole::ReadWrite, Some(1))],
-                vec![],
-                Block(vec![nest(depth, st.clone())]),
-            );
-            match Sycl.lower_kernel(&k) {
-                Err(LowerError::UnsupportedKernel { detail }) => {
-                    assert!(
-                        detail.contains(&format!("Stmt::{name}")),
-                        "{name} depth {depth}: {detail}"
-                    );
-                    assert!(detail.contains("nv_stmt"), "{name} depth {depth}: {detail}");
-                }
-                other => panic!("{name} depth {depth}: expected UnsupportedKernel, got {other:?}"),
+            let d = reason(&wrap(depth));
+            assert!(d.contains("sycl"), "{name} depth {depth}: {d}");
+            assert!(d.contains(&k.name), "{name} depth {depth}: {d}");
+            if DECLINED.contains(name) {
+                assert!(
+                    d.contains(&format!("declines `Stmt::{name}` by name")),
+                    "{name} depth {depth}: {d}"
+                );
+            } else {
+                assert!(
+                    !d.contains("declines `Stmt::"),
+                    "{name} depth {depth}: must not be named: {d}"
+                );
             }
+        }
+    }
+}
+
+/// unpopped 0.58.4 added the exclusive Max / Min / Prod scans to `Stmt::Collective`: a kernel using one is
+/// checker-valid and is declined by the name `Collective`, bare and nested.
+#[test]
+fn exclusive_max_min_prod_scans_are_declined_by_name_collective() {
+    let (_, fx) = fixtures()
+        .into_iter()
+        .find(|(n, _)| *n == "Collective")
+        .expect("Collective fixture");
+    let base = entry(&fx);
+    for op in [ReduceOp::Max, ReduceOp::Min, ReduceOp::Prod] {
+        for exclusive in [true, false] {
+            let mut k = base.clone();
+            let mut hit = 0;
+            for st in &mut k.body.0 {
+                if let Stmt::Collective { kind, .. } = st {
+                    *kind = CollectiveKind::Scan { op, exclusive };
+                    hit += 1;
+                }
+            }
+            assert_eq!(hit, 1, "{op:?}: anchor");
+            assert_eq!(
+                check_kernel(&k),
+                Ok(()),
+                "{op:?} exclusive={exclusive}: must be checker-valid"
+            );
+            let d = reason(&k);
+            assert!(
+                d.contains("declines `Stmt::Collective` by name"),
+                "{op:?} exclusive={exclusive}: {d}"
+            );
         }
     }
 }

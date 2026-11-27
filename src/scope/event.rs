@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! [`Event`] and [`DeviceTime`]: handles to submitted device work (moved out of `scope.rs`, R15).
 
 use std::ffi::c_void;

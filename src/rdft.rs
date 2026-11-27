@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Real-to-complex and complex-to-real DFT (R3b).
 //!
 //! [`RealDft`] transforms an array of real numbers into its **half spectrum** and back. A real

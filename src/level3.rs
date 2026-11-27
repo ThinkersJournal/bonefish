@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Level 3 BLAS beyond `gemm` (R3): `symm`, `syrk`, `syr2k`, `trmm`, `trsm` for `f32`, `f64`,
 //! `Complex<f32>` and `Complex<f64>`, and the Hermitian `hemm`, `herk`, `her2k` for the complex types.
 //! The non-blocking forms are on [`Scope`](crate::Scope); the blocking forms are here. Batched and
@@ -8,8 +9,8 @@ use std::ffi::c_void;
 
 use bonefish_sys as sys;
 
-use crate::blas::Transpose;
 use crate::error::Result;
+use crate::layout::Transpose;
 use crate::level2::{Diag, Uplo, same_queue};
 use crate::queue::Queue;
 use crate::scalar::{Element, Scalar};

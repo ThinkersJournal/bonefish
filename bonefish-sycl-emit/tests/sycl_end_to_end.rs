@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Generate -> compile with `icpx -fsycl` -> run on a SYCL device -> compare to the oracle.
 //!
 //! Modelled on `unpopped-cpu-c`'s `cpu_end_to_end.rs`: the output is NaN-filled so a kernel that

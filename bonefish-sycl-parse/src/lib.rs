@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The SYCL/DPC++ front end for [Unpopped](https://crates.io/crates/unpopped).
 //!
 //! Bonefish owns SYCL in the CireSnave ecosystem (the emitter is `bonefish-sycl-emit`), so the

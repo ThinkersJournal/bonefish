@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Stand-ins for: level 1 BLAS (and `rotm`) (build without the shim). Split out of `lib.rs` (R15).
 
 use super::base::STATUS_UNAVAILABLE;

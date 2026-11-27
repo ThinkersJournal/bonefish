@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The `Level3` and `Hermitian3` implementations for `Complex<f32>` and `Complex<f64>` (moved out
 //! of `level3.rs`, R15: they are two long macro bodies of the same shape as the real ones).
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Operands, timing and verification of one `(shape, variant)` row.
 
 use std::time::Instant;

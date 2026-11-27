@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! No tracked file may contain a NUL byte.
 //!
 //! Why this exists: a literal NUL in `bonefish-sys/src/lib.rs` (a `b"...\0"` written as the raw

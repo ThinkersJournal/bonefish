@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Level 1, `gemv` and DFT inside `Queue::scope` (R3c step 3). Needs a device; without oneAPI the
 //! tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`. CPU/OpenCL device only; GPU UNVERIFIED.
 

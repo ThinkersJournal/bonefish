@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // Half-precision `gemm` over oneapi::mkl::blas::column_major (R5c, non-blocking only).
 //
 // The four variants oneMKL declares (usm_decls.hpp), named by (A, B, C, scalar):

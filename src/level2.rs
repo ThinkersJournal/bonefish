@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Level 2 BLAS beyond `gemv` (R3): `rotm`, `symv`, `syr`, `syr2`, `trmv`, `trsv`, `gbmv`, for
 //! `f32` and `f64`. The non-blocking forms are on [`Scope`](crate::Scope); the blocking forms are
 //! here and in [`blas`](crate::blas). Complex Hermitian counterparts are not wrapped yet.
@@ -6,8 +7,8 @@ use std::ffi::c_void;
 
 use bonefish_sys as sys;
 
-use crate::blas::Transpose;
 use crate::error::Result;
+use crate::layout::Transpose;
 use crate::queue::Queue;
 use crate::scalar::Scalar;
 use crate::usm::UsmBuffer;

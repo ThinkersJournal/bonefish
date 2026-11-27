@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // Standalone reproducer, finding 2 of docs/INTEL-REPORT-DRAFT.md: on a queue created with
 // sycl::property::queue::in_order, a oneMKL `dot` submitted right after another oneMKL call does
 // not wait for it. Plain C++ with SYCL and oneMKL only; one thread.

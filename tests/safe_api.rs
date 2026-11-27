@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The safe API against a real SYCL CPU (OpenCL) device. Without oneAPI the device tests skip
 //! loudly, unless `BONEFISH_REQUIRE_SYCL=1` (the oneAPI CI job), which makes a skip a failure.
 //! `without_sycl_everything_fails_cleanly` covers the other build and always runs. Nothing here

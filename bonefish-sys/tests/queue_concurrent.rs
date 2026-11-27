@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Several threads creating the first queues of a process at once must all get one (bonefish#40).
 //!
 //! On Windows the first use of the SYCL runtime loads Intel's OpenCL runtime, and `tbb12`'s DllMain

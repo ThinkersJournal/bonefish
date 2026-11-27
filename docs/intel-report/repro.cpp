@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // Standalone reproducer: N host threads doing oneMKL SYCL gemm. Plain C++ with SYCL and oneMKL only.
 // Used for docs/INTEL-REPORT-DRAFT.md; see that file for the results and the versions.
 //

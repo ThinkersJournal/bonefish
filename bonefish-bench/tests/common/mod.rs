@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // Copy of bonefish-sys/tests/common/mod.rs (ROADMAP R17), kept inside this crate so the test does
 // not read a file outside its package (SUP-004). Keep the two in step.
 //! Per-test watchdog for the `bonefish-sys` tests (ROADMAP R17, bonefish#40: all dftr tests hung

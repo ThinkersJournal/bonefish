@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Half-precision `gemm` through the safe API (`Scope::{hgemm, hgemm_f32, bgemm, bgemm_f32}`).
 //! Needs a device; without oneAPI the tests skip loudly unless `BONEFISH_REQUIRE_SYCL=1`. A device
 //! that refuses a variant is reported as NOT RUN, never silently skipped, and fails the test when

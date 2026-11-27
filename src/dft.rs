@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Complex-to-complex discrete Fourier transforms through oneMKL.
 
 use std::ffi::c_void;

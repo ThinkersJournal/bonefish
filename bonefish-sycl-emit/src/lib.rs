@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! SYCL/DPC++ backend for the neutral `unpopped` kernel generator.
 //!
 //! [`Sycl`] lowers a [`KernelPlan`] to SYCL C++ source: one `extern "C"` host function that
@@ -66,6 +67,15 @@ const DECLINED_STMTS: &[&str] = &[
     "CopyBulk",
     "Tcgen05Commit",
     "WgmmaWait",
+    "WgmmaCommit",
+    "Tcgen05Ld",
+    "ProxyFence",
+    "Wgmma",
+    "Tcgen05Mma",
+    "Tcgen05Alloc",
+    "Tcgen05Dealloc",
+    "Tcgen05RelinquishPermit",
+    "CopyUnpack",
     "AsyncWait",
     "CopyAsync",
     "AsyncCommit",
@@ -158,7 +168,19 @@ impl Backend for Sycl {
             | ElementKind::Fp8E5M2FNUZ
             | ElementKind::F4E2M1
             | ElementKind::F6E2M3
-            | ElementKind::F6E3M2 => DtypeSupport::Unsupported,
+            | ElementKind::F6E3M2
+            // Unpopped 0.60.0 (E1a): declined by name. The verified reason is this emitter's own:
+            // v1 computes f32 and f64 only (see `lower`), so every other dtype is Unsupported.
+            // UNVERIFIED: not re-read at this ref - any claim that SYCL itself lacks 128/256-bit
+            // integers, binary128, f8e3m4 or f8ue4m3 is from memory, not checked against the SYCL
+            // 2020 spec or Intel DPC++ docs, and nothing here depends on it.
+            | ElementKind::F128
+            | ElementKind::I128
+            | ElementKind::U128
+            | ElementKind::I256
+            | ElementKind::U256
+            | ElementKind::F8E3M4
+            | ElementKind::F8UE4M3 => DtypeSupport::Unsupported,
         }
     }
 

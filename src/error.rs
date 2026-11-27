@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! Errors from the safe layer.
 
 use std::ffi::CStr;

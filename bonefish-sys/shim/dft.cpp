@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 // Complex-to-complex DFT over oneapi::mkl::dft. The handle owns a committed descriptor and a copy
 // of the queue (a sycl::queue is a reference-counted handle, so the caller may free its own).
 #include "common.hpp"

@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! The non-blocking level 3 operations on [`Scope`] beyond `gemm`: `symm`, `syrk`, `syr2k`,
 //! `trmm`, `trsm`. Same contract as the other scope operations: extents are checked in Rust, and a
 //! buffer an operation writes is distinct from the ones it reads.
 
 use super::{Event, NO_DEPS, Operand, Scope, Write, distinct};
-use crate::blas::{Transpose, check_matrix, dim};
 use crate::error::Result;
+use crate::layout::{Transpose, check_matrix, dim};
 use crate::level2::{Diag, Uplo};
 use crate::level3::{Hermitian3, Level3, Side};
 

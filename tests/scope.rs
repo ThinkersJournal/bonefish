@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //! `Queue::scope`: non-blocking operations, events, and the guarantees the scope gives
 //! (`docs/ASYNC-DESIGN.md`). Needs a device; without oneAPI the tests skip loudly unless
 //! `BONEFISH_REQUIRE_SYCL=1`. The compile-time guarantees (`E0502`, `E0505`, no escape) are
