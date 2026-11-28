@@ -10,8 +10,8 @@ publish = false
 
 [dependencies]
 # Pre-1.0 and moving: pinned exactly (unpopped's own advice).
-unpopped = "=0.62.0"
-unpopped-vocab = "=0.62.0"
+unpopped = "=0.63.3"
+unpopped-vocab = "=0.63.3"
 
 [dev-dependencies]
-unpopped = { version = "=0.62.0", features = ["fixtures"] }
+unpopped = { version = "=0.63.3", features = ["fixtures"] }
