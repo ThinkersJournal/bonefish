@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bonefish-sys",
  "half",
@@ -21,7 +21,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish-bench"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bonefish",
  "half",
@@ -29,7 +29,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish-sycl-emit"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "unpopped",
  "unpopped-vocab",
@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish-sycl-parse"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bonefish-sycl-emit",
  "tree-sitter",
@@ -49,7 +49,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish-sys"
-version = "0.3.0"
+version = "0.3.1"
 
 [[package]]
 name = "cc"
