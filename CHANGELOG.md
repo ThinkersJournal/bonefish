@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 (allocated by pm-assist 2026-11-27; take of unpopped =0.63.8 over =0.63.3: additive upstream patches 0.63.4-0.63.8, exact pins moved; not Breaking: the lane called it breaking, the number follows the upstream change kind)
+
+- Take of unpopped =0.63.8 (0.63.4-0.63.8 over the 0.63.3 take). Version bump only: no code change. Checks: fmt, clippy -D warnings, stub-build emit and parse tests. SYCL-device tests not rerun locally.
+
 ## 0.3.0 (allocated by pm-assist 2026-11-27; BREAKING: unpopped 0.63.3 take; the public API exposes unpopped types)
 
 - Take of unpopped =0.63.3 (0.63.0-0.63.3; Numerics gains a spelling field). Version bump only: no `Numerics` use in bonefish (grep of all .rs, positive control ElementKind::F32 found). Checks: fmt, clippy -D warnings, stub-build emit and parse tests. SYCL-device tests not rerun locally.
