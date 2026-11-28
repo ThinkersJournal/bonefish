@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (version to be allocated by pm-assist; BREAKING: unpopped 0.63.3 take)
+## 0.3.0 (allocated by pm-assist 2026-11-27; BREAKING: unpopped 0.63.3 take; the public API exposes unpopped types)
 
 - Take of unpopped =0.63.3 (0.63.0-0.63.3; Numerics gains a spelling field). Version bump only: no `Numerics` use in bonefish (grep of all .rs, positive control ElementKind::F32 found). Checks: fmt, clippy -D warnings, stub-build emit and parse tests. SYCL-device tests not rerun locally.
 
