@@ -1,6 +1,6 @@
 [package]
 name = "bonefish-sycl-parse"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2024"
 rust-version = "1.85"
 description = "SYCL/DPC++ front end for the neutral unpopped kernel generator: a tree-sitter C++ parser and the SYCL Frontend that lifts SYCL elementwise kernels into unpopped's IR."
@@ -10,11 +10,11 @@ publish = false
 
 [dependencies]
 # Pre-1.0 and moving: pinned exactly (unpopped's own advice).
-unpopped = "=0.63.8"
-unpopped-convert = "=0.63.8"
+unpopped = "=0.64.0"
+unpopped-convert = "=0.64.0"
 tree-sitter = "0.27"
 tree-sitter-cpp = "0.23"
 
 [dev-dependencies]
-unpopped-vocab = "=0.63.8"
+unpopped-vocab = "=0.64.0"
 bonefish-sycl-emit = { path = "../bonefish-sycl-emit" }

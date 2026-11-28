@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "bonefish-sys",
  "half",
@@ -21,7 +21,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish-bench"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "bonefish",
  "half",
@@ -29,7 +29,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish-sycl-emit"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "unpopped",
  "unpopped-vocab",
@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish-sycl-parse"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "bonefish-sycl-emit",
  "tree-sitter",
@@ -49,7 +49,7 @@ dependencies = [
 
 [[package]]
 name = "bonefish-sys"
-version = "0.3.1"
+version = "0.4.0"
 
 [[package]]
 name = "cc"
@@ -308,9 +308,9 @@ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
 name = "unpopped"
-version = "0.63.8"
+version = "0.64.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "450efefbab0238ee6d0146cd62df7534f575e11684bcdc92198e8dec0577e434"
+checksum = "d2f491b705abb52dfc0bf7ae4f7d03d63f8eb91449458f0f399bfd774a99d451"
 dependencies = [
  "libm",
  "serde",
@@ -320,9 +320,9 @@ dependencies = [
 
 [[package]]
 name = "unpopped-convert"
-version = "0.63.8"
+version = "0.64.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f9751168308889340a42b8790168cae4f59c25b45624e066e10e190d49b630c"
+checksum = "f2d94b37fbe949ad82e73250f191f3f00235e91f90806a36e0110ac10ff48de1"
 dependencies = [
  "tree-sitter",
  "unpopped",
@@ -331,9 +331,9 @@ dependencies = [
 
 [[package]]
 name = "unpopped-vocab"
-version = "0.63.8"
+version = "0.64.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97c9a65bcf1bb022960d05b120aaa8fa6853796c27160e07e750ae76d68ce678"
+checksum = "c8591978cd0eb665468c9cd2bbbbf8f4ed6e034dedc6c6aa03db865ccb7393a4"
 dependencies = [
  "float8",
  "half",

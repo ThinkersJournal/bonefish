@@ -200,3 +200,35 @@ fn exclusive_max_min_prod_scans_are_declined_by_name_collective() {
         }
     }
 }
+
+/// unpopped 0.64.0 `Stmt::Assume` is a pure value fact (reads and writes nothing, orders nothing): the
+/// backend ignores it, never declines it by name, and it never changes what is said about the rest of the
+/// kernel (the refusal reason is byte-equal with and without it, bare or nested). Lowering it to an
+/// optimiser hint is a later row.
+#[test]
+fn an_assume_never_changes_the_refusal_of_the_rest_of_the_kernel() {
+    let i32k = ElementKind::I32;
+    let c = |v: i64| ScalarExpr::ConstInt(v, i32k);
+    let plain = atomic_kernel(AtomicOp::Add);
+    let want = reason(&plain);
+    assert!(!want.contains("declines `Stmt::"), "{want}");
+    let assume = || Stmt::Assume { cond: c(1) };
+    let mut bare = plain.clone();
+    bare.body.0.insert(0, assume());
+    let mut nested = plain.clone();
+    nested.body = Block(vec![Stmt::If {
+        cond: c(1),
+        then: Block(vec![assume()]),
+        els: Block(vec![]),
+    }]);
+    nested.body.0.extend(plain.body.0.clone());
+    for (what, k) in [("bare", bare), ("nested", nested)] {
+        assert_eq!(check_kernel(&k), Ok(()), "{what}");
+        assert_eq!(reason(&k), want, "{what}");
+    }
+    // An Assume-only kernel is refused like any other kernel-layer kernel, not by name.
+    let mut only = plain.clone();
+    only.body = Block(vec![assume()]);
+    let d = reason(&only);
+    assert!(!d.contains("Assume"), "{d}");
+}
