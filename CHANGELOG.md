@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased (number to be allocated by pm-assist; take of unpopped =0.64.0 over =0.63.8)
+
+- Take of unpopped =0.64.0 (BREAKING upstream: `Stmt::Assume`, U50). Bonefish has no exhaustive `match` on `Stmt` (the kernel layer refuses every kernel; declined statements are matched by name), so no code change was needed. Per the cluster ruling 2026-11-28 `Assume` is a pure value fact and is IGNORED, not declined: new test `an_assume_never_changes_the_refusal_of_the_rest_of_the_kernel` pins that the refusal reason is byte-equal with and without an `Assume` (bare and nested), caught by a mutant that adds `Assume` to the decline list. Lowering it to an optimiser hint is a later row. Checks: fmt, clippy -D warnings, stub-build (BONEFISH_NO_SYCL=1) emit and parse tests. SYCL-device tests not rerun locally.
+
 ## 0.3.1 (allocated by pm-assist 2026-11-27; take of unpopped =0.63.8 over =0.63.3: additive upstream patches 0.63.4-0.63.8, exact pins moved; not Breaking: the lane called it breaking, the number follows the upstream change kind)
 
 - Take of unpopped =0.63.8 (0.63.4-0.63.8 over the 0.63.3 take). Version bump only: no code change. Checks: fmt, clippy -D warnings, stub-build emit and parse tests. SYCL-device tests not rerun locally.
